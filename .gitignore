@@ -8,6 +8,10 @@
 
 # Node
 /node_modules
+node_modules/
+dist/
+.angular/
+api/local.settings.json
 npm-debug.log
 yarn-error.log
 

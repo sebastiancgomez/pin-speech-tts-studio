@@ -17,7 +17,7 @@ import { VoiceTTS, ChunkAudio  } from '../../shared/models/tts.models'; // ajust
 export class TtsService {
 
 // Ahora apunta a nuestro proxy local en vez de TikTok directamente
- private readonly TIKTOK_URL = 'http://localhost:3000/api/tts/tiktok';
+ private readonly TIKTOK_URL = '/api/tts/tiktok';
 
   // Google TTS es público y no requiere proxy en producción
   // En desarrollo, el browser bloquea CORS — usamos el audio element directamente
@@ -34,7 +34,7 @@ export class TtsService {
   // Ahora retorna Observable — las voces vienen del servidor
 // Equivalente a: Task<List<VozTTS>> ObtenerVoces() en C#
   getTiktokVoices(): Observable<VoiceTTS[]> {
-    return this.http.get<{ voices: any[] }>('http://localhost:3000/api/tts/tiktok/voices').pipe(
+    return this.http.get<{ voices: any[] }>('/api/tts/tiktok/voices').pipe(
       map(response => response.voices.map(v => ({
         id: v.id,
         name: v.name,
@@ -50,7 +50,7 @@ export class TtsService {
   }
 
   getGoogleVoices(): Observable<VoiceTTS[]> {
-    return this.http.get<{ voices: any[] }>('http://localhost:3000/api/tts/google/voices').pipe(
+    return this.http.get<{ voices: any[] }>('/api/tts/google/voices').pipe(
       map(response => response.voices.map(v => ({
         id: v.id,
         name: v.name,
