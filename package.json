@@ -1,5 +1,5 @@
 {
-  "name": "tts-app",
+  "name": "pinspeech",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
@@ -17,6 +17,9 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "node-fetch": "^2.7.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

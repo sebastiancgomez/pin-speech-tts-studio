@@ -2,11 +2,12 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "cli": {
-    "packageManager": "npm"
+    "packageManager": "npm",
+    "analytics": "ab151327-b647-42d4-9c3d-c6b2714bb42d"
   },
   "newProjectRoot": "projects",
   "projects": {
-    "tts-app": {
+    "pinspeech": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -61,13 +62,16 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "tts-app:build:production"
+              "buildTarget": "pinspeech:build:production"
             },
             "development": {
-              "buildTarget": "tts-app:build:development"
+              "buildTarget": "pinspeech:build:development"
             }
           },
-          "defaultConfiguration": "development"
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "src/proxy.conf.json"
+          }
         },
         "test": {
           "builder": "@angular/build:unit-test"

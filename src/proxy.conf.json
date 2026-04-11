@@ -1,0 +1,11 @@
+{
+  "/tiktok-tts": {
+    "target": "https://tiktok-tts.weilnet.workers.dev",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/tiktok-tts": ""
+    },
+    "logLevel": "debug"
+  }
+}

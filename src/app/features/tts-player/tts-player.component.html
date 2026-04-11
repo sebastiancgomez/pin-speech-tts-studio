@@ -1,0 +1,198 @@
+<!-- Angular usa interpolación {{ }} = equivalente a @Model.Propiedad en Razor -->
+<!-- [atributo]="expresión" = property binding (como @bind en Blazor) -->
+<!-- (evento)="método()" = event binding (como @onclick en Blazor) -->
+<!-- [(ngModel)] = two-way binding (como @bind-Value en Blazor) -->
+
+<div class="tts-app">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo-mark">
+        <span class="logo-wave">❤</span>
+        <h1>PinSpeech</h1>
+      </div>
+      <p class="tagline">Text-to-Speech Studio</p>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- Panel izquierdo: Selector de voces -->
+    <aside class="voice-panel">
+
+      <!-- Selector de servicio -->
+      <div class="service-tabs">
+        <button
+          class="tab-btn"
+          [class.active]="activeService === 'tiktok'"
+          (click)="changeService('tiktok')">
+          TikTok TTS
+        </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeService === 'google'"
+          (click)="changeService('google')">
+          Google TTS
+        </button>
+      </div>
+
+      <!-- Lista de voces -->
+      <!-- *ngFor es como @foreach en Razor — itera y renderiza elementos -->
+      <div class="voices-list">
+        <div *ngIf="loadingVoices()" 
+          style="padding: 1rem; color: var(--color-text-muted); font-size: 0.85rem; text-align: center;">
+        Validando voces disponibles...
+      </div>
+        <div
+          *ngFor="let voice of activeVoices"
+          class="voice-card"
+          [class.selected]="selectedVoice?.id === voice.id && selectedVoice?.name === voice.name"
+          (click)="selectVoice(voice)">
+
+          <div class="voice-info">
+            <span class="voice-name">{{ voice.name }}</span>
+            <span class="voice-id">{{ voice.language }}</span>
+          </div>
+
+          <!-- Botón de preview por voz -->
+          <button
+            class="preview-btn"
+            (click)="voicePreview(voice, $event)"
+            title="Escuchar preview"
+            [disabled]="previewingVoiceId() === voice.id">
+            {{ previewingVoiceId() === voice.id ? '...' : '▶' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Audio de preview (oculto visualmente) -->
+      <audio #audioPreview></audio>
+
+    </aside>
+
+    <!-- Panel derecho: Editor y controles -->
+    <section class="editor-panel">
+
+      <!-- Texto de entrada -->
+      <div class="input-section">
+        <label class="input-label">
+          Texto a convertir
+          <!-- *ngIf es como @if en Razor -->
+          <span class="chunk-info" *ngIf="inputText.length > 0">
+            {{ inputText.length }} chars · {{ chunksTotal }} chunk{{ chunksTotal !== 1 ? 's' : '' }}
+          </span>
+        </label>
+        <!-- [(ngModel)] sincroniza en ambas direcciones el valor del textarea con inputText -->
+        <textarea
+          [(ngModel)]="inputText"
+          class="text-input"
+          placeholder="Escribe o pega aquí el texto que quieres convertir a audio..."
+          rows="8">
+        </textarea>
+      </div>
+
+      <!-- Controles de volume -->
+      <div class="volume-section">
+        <label class="control-label">Volumen: {{ volume }}%</label>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          [value]="volume"
+          (input)="changeVolume($event)"
+          class="volume-slider">
+      </div>
+      <!-- Control de velocidad -->
+      <div class="volume-section">
+        <label class="control-label">Velocidad: {{ playSpeed() }}x</label>
+        <input
+          type="range"
+          min="0.5"
+          max="1.5"
+          step="0.25"
+          [value]="playSpeed()"
+          (input)="changeSpeed($event)"
+          class="volume-slider">
+      </div>
+
+      <!-- Voz seleccionada actualmente -->
+      <div class="selected-voice" *ngIf="selectedVoice">
+        <span class="selected-label">Voz:</span>
+        <span class="selected-name">{{ selectedVoice.name }}</span>
+        <span class="selected-service service-badge">{{ activeService }}</span>
+      </div>
+
+      <!-- Botones de acción principales -->
+      <div class="action-buttons">
+        <button
+          class="btn btn-primary"
+          (click)="generateAndPlay()"
+          [disabled]="isLoading() || !inputText.trim() || !selectedVoice || isPlaying()">
+          {{ isLoading() ? 'Procesando... ' + progress() + '%' : '▶ Generar y reproducir' }}
+        </button>
+
+        <!-- Pause / Resume según estado -->
+        <button
+          class="btn btn-secondary"
+          (click)="pauseOrResume()"
+          [disabled]="!isPlaying() && !isPaused()">
+          {{ isPaused() ? '▶ Resume' : '⏸ Pause' }}
+        </button>
+
+        <!-- Stop: habilitado si está cargando, reproduciendo o pausado -->
+        <button
+          class="btn btn-ghost"
+          (click)="stop()"
+          [disabled]="!isPlaying() && !isPaused() && !isLoading()">
+          ⏹ Stop
+        </button>
+
+        <!-- Export: habilitado si hay chunks aunque esté reproduciendo -->
+        <button
+          class="btn btn-export"
+          (click)="exportAudio()"
+          [disabled]="chunks().length === 0 || isLoading()">
+          ↓ Export audio
+        </button>
+      </div>
+
+      <!-- Barra de progress -->
+      <div class="progress-bar-wrapper" *ngIf="isLoading()">
+        <div class="progress-bar" [style.width.%]="progress()"></div>
+        <span class="progress-text">{{ progress() }}%</span>
+      </div>
+
+      <div class="alert alert-error" *ngIf="errorMessage()">
+        ✕ {{ errorMessage() }}
+      </div>
+      <div class="alert alert-success" *ngIf="succesMessage()">
+        ✓ {{ succesMessage() }}
+      </div>
+
+      <!-- Reproductor de audio (oculto — lo controlamos por código) -->
+      <audio #audioPlayer></audio>
+
+      <!-- Cola de chunks (visible cuando hay audio generado) -->
+      <div class="queue-info" *ngIf="chunks().length > 0 || isLoading()">
+        <span class="queue-label">Cola:</span>
+        <span class="queue-count">
+          {{ currentIndex() + 1 }} / {{ audioQueue().length }}
+          <span *ngIf="isDowloadingInBackground() && progress() < 100" style="color: var(--color-text-muted)">
+            (descargando... {{ progress() }}%)
+          </span>
+        </span>
+        <div class="queue-dots">
+          <span
+            *ngFor="let url of audioQueue(); let i = index"
+            class="dot"
+            [class.played]="i < currentIndex()"
+            [class.current]="i === currentIndex()">
+          </span>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
