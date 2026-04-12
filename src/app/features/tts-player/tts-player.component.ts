@@ -56,6 +56,12 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     return this.ttsService.divideIntoChunks(this.inputText, limite).length;
   }
 
+  get exportButtonLabel(): string {
+    if (this.allChunksDownloaded()) return '↓ Export audio';
+    if (this.isBufferReady()) return '⬇ Downloading... ' + this.progress() + '%';
+    return '↓ Export audio';
+  }
+
   constructor(
     private ttsService: TtsService,
     private ngZone: NgZone
@@ -71,7 +77,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         }
         console.log(`✅ ${voices.length} voices TikTok`);
       },
-      error: err => this.errorMessage.set('Error cargando voices TikTok: ' + err.message)
+      error: err => this.errorMessage.set('Error loading TikTok voices: ' + err.message)
     });
 
     this.ttsService.getGoogleVoices().subscribe({
@@ -84,7 +90,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         console.log(`✅ ${voices.length} voices Google`);
       },
       error: err => {
-        this.errorMessage.set('Error cargando voces Google: ' + err.message);
+        this.errorMessage.set('Error loading Google voices: ' + err.message);
         this.loadingVoices.set(false);
       }
     });
@@ -155,7 +161,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         await this.generateGoogleWithBuffer();
       }
     } catch (error: any) {
-      this.errorMessage.set(error.message || 'Error desconocido');
+      this.errorMessage.set(error.message || 'Unknown error');
       this.isLoading.set(false);
     }
   }
@@ -192,7 +198,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
-        console.log(`✅ Google chunk ${i + 1}/${total} listo`);
+        console.log(`✅ Google chunk ${i + 1}/${total} ready`);
 
         if (downloaded >= umbralBuffer && !isPlaybackStarted) {
           isPlaybackStarted = true;
@@ -202,20 +208,20 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         }
       }).catch(error => {
         console.error(`❌ Error Google chunk ${i + 1}:`, error);
-        this.errorMessage.set(`Error en chunk ${i + 1}: ${error?.message}`);
+        this.errorMessage.set(`Error on chunk ${i + 1}: ${error?.message}`);
       })
     );
 
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
     // Pre-combinamos en segundo plano — el export será instantáneo
-    console.log('🔄 Pre-combinando audio...');
+    console.log('🔄 Pre-combining audio...');
     this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
       this.chunks().filter(Boolean)
     );
-    console.log('✅ Audio pre-combinado listo');
+    console.log('✅ Pre-combined audio is ready');
     this.allChunksDownloaded.set(true);
-    console.log('✅ Todos los chunks descargados, Exportar habilitado');
+    console.log('✅ All chunks downloaded, Export enabled');
 
     if (this.isPlaying()) {
       this.playNext();
@@ -257,30 +263,30 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
-        console.log(`✅ Chunk ${i + 1}/${total} listo`);
+        console.log(`✅ Chunk ${i + 1}/${total} ready`);
 
         if (downloaded >= umbralBuffer && !isPlaybackStarted) {
           isPlaybackStarted = true;
           this.isBufferReady.set(true);
           this.isLoading.set(false);
-          console.log(`▶ Iniciando reproducción con ${downloaded} chunks listos`);
+          console.log(`▶ Starting playback with ${downloaded} chunks ready`);
           this.playNext();
         }
       }).catch(error => {
         console.error(`❌ Error chunk ${i + 1}:`, error);
-        this.errorMessage.set(`Error en chunk ${i + 1}: ${error?.message}`);
+        this.errorMessage.set(`Error on chunk ${i + 1}: ${error?.message}`);
       })
     );
 
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
-    console.log('🔄 Pre-combinando audio...');
+    console.log('🔄 Pre-combining audio...');
     this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
       this.chunks().filter(Boolean)
     );
-    console.log('✅ Audio pre-combinado listo');
+    console.log('✅ Pre-combined audio is ready');
     this.allChunksDownloaded.set(true);
-    console.log('✅ Todos los chunks descargados, Exportar habilitado');
+    console.log('✅ All chunks downloaded, Export enabled');
 
     if (!isPlaybackStarted && this.chunks().filter(Boolean).length > 0) {
       this.isBufferReady.set(true);
@@ -290,7 +296,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   playNext(): void {
-    console.log('🔄 playNext llamado:', {
+    console.log('🔄 playNext called:', {
       currentIndex: this.currentIndex,
       queueLength: this.audioQueue().length,
       isDownloadingInBackground: this.isDowloadingInBackground,
@@ -300,11 +306,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     // Con índice 5 y longitud 5, esta condición ES true — si no entra, 
     // hay algo más ejecutándose después que vuelve a llamar reproducirSiguiente
     if (this.currentIndex() >= this.audioQueue().length) {
-      console.log('🏁 FIN de cola detectado');
+      console.log('🏁 END of queue detected');
       this.ngZone.run(() => {
         this.isPlaying.set(false);
         this.isDowloadingInBackground.set(false);
-        this.successMessage.set('✓ Reproducción completada');
+        this.successMessage.set('✓ Playback completed');
       });
       return;
     }
@@ -312,7 +318,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     const currentUrl = this.audioQueue()[this.currentIndex()];
 
     if (!currentUrl) {
-      console.log(`⏳ Esperando chunk ${this.currentIndex() + 1}...`);
+      console.log(`⏳ Waiting for chunk ${this.currentIndex() + 1}...`);
       setTimeout(() => this.playNext(), 200);
       return;
     }
@@ -323,7 +329,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     audioEl.onerror = null;
 
     audioEl.onended = () => {
-      console.log(`🎵 Chunk ${this.currentIndex()} terminó`);
+      console.log(`🎵 Chunk ${this.currentIndex()} finished`);
       this.currentIndex.set(this.currentIndex() + 1);
       // NgZone.run() garantiza que Angular detecta los cambios
       // desde eventos DOM nativos que ocurren fuera de su zona
@@ -332,7 +338,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
     audioEl.onerror = () => {
       if (this.isStopping) return;
-      console.warn(`Error en chunk ${this.currentIndex()}, saltando...`);
+      console.warn(`Error in chunk ${this.currentIndex()}, skipping...`);
       this.currentIndex.set(this.currentIndex() + 1);
       this.ngZone.run(() => this.playNext());
     };
@@ -341,7 +347,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     audioEl.src = currentUrl;
     audioEl.volume = this.volume / 100;
     audioEl.playbackRate = this.playSpeed();
-    audioEl.play().catch(e => console.error('Error al reproducir:', e));
+    audioEl.play().catch(e => console.error('Playback error:', e));
   }
 
   pauseOrResume(): void {
@@ -388,7 +394,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
   async exportAudio(): Promise<void> {
     if (!this.mergedBuffer) {
-      this.errorMessage.set('El audio aún se está procesando, espera un momento');
+      this.errorMessage.set('The audio is still being processed, please wait a moment');
       return;
     }
 
@@ -397,7 +403,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       this.ttsService.downloadWav(this.mergedBuffer, 'pinspeech-output');
       this.successMessage.set(`✓ Audio exported successfully`);
     } catch (e: any) {
-      this.errorMessage.set('Error al exportar: ' + e.message);
+      this.errorMessage.set('Export error: ' + e.message);
     } finally {
       this.isLoading.set(false);
     }

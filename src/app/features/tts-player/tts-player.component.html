@@ -42,7 +42,7 @@
       <div class="voices-list">
         <div *ngIf="loadingVoices()" 
           style="padding: 1rem; color: var(--color-text-muted); font-size: 0.85rem; text-align: center;">
-        Validando voces disponibles...
+        Validating available voices...
       </div>
         <div
           *ngFor="let voice of activeVoices"
@@ -77,7 +77,7 @@
       <!-- Texto de entrada -->
       <div class="input-section">
         <label class="input-label">
-          Texto a convertir
+          Text to convert
           <!-- *ngIf es como @if en Razor -->
           <span class="chunk-info" *ngIf="inputText.length > 0">
             {{ inputText.length }} chars · {{ chunksTotal }} chunk{{ chunksTotal !== 1 ? 's' : '' }}
@@ -87,14 +87,14 @@
         <textarea
           [(ngModel)]="inputText"
           class="text-input"
-          placeholder="Escribe o pega aquí el texto que quieres convertir a audio..."
+          placeholder="Write or paste the text you want to convert to audio..."
           rows="8">
         </textarea>
       </div>
 
       <!-- Controles de volume -->
       <div class="volume-section">
-        <label class="control-label">Volumen: {{ volume }}%</label>
+        <label class="control-label">Volume: {{ volume }}%</label>
         <input
           type="range"
           min="0"
@@ -105,7 +105,7 @@
       </div>
       <!-- Control de velocidad -->
       <div class="volume-section">
-        <label class="control-label">Velocidad: {{ playSpeed() }}x</label>
+        <label class="control-label">Speed: {{ playSpeed() }}x</label>
         <input
           type="range"
           min="0.5"
@@ -129,7 +129,7 @@
           class="btn btn-primary"
           (click)="generateAndPlay()"
           [disabled]="isLoading() || !inputText.trim() || !selectedVoice || isPlaying()">
-          {{ isLoading() ? 'Procesando... ' + progress() + '%' : '▶ Generar y reproducir' }}
+          {{ isLoading() ? 'Processing... ' + progress() + '%' : '▶ Generate and play' }}
         </button>
 
         <!-- Pause / Resume según estado -->
@@ -137,7 +137,7 @@
           class="btn btn-secondary"
           (click)="pauseOrResume()"
           [disabled]="!isPlaying() && !isPaused()">
-          {{ isPaused() ? '▶ Reanudar' : '⏸ Pausar' }}
+          {{ isPaused() ? '▶ Resume' : '⏸ Pause' }}
         </button>
 
         <!-- Stop: habilitado si está cargando, reproduciendo o pausado -->
@@ -145,7 +145,7 @@
           class="btn btn-ghost"
           (click)="stop()"
           [disabled]="!isPlaying() && !isPaused() && !isLoading()">
-          ⏹ Detener
+          ⏹ Stop
         </button>
 
         <!-- Export: habilitado si hay chunks aunque esté reproduciendo -->
@@ -153,7 +153,7 @@
           class="btn btn-export"
           (click)="exportAudio()"
           [disabled]="!allChunksDownloaded() || isLoading()">
-          {{ chunks().length ===0 || allChunksDownloaded() ? '↓ Exportar audio' : 'Descargando... ' + progress() + '%' }}
+           {{ exportButtonLabel }}
         </button>
       </div>
 
@@ -175,11 +175,11 @@
 
       <!-- Cola de chunks (visible cuando hay audio generado) -->
       <div class="queue-info" *ngIf="chunks().length > 0 || isLoading()">
-        <span class="queue-label">Cola:</span>
+        <span class="queue-label">Queue:</span>
         <span class="queue-count">
           {{ currentIndex() + 1 }} / {{ audioQueue().length }}
           <span *ngIf="isDowloadingInBackground() && progress() < 100" style="color: var(--color-text-muted)">
-            (descargando... {{ progress() }}%)
+            (downloading... {{ progress() }}%)
           </span>
         </span>
         <div class="queue-dots">

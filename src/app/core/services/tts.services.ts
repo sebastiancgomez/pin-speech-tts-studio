@@ -43,8 +43,8 @@ export class TtsService {
         preview: 'Hello, this is a voice preview.'
       }))),
       catchError(error => {
-        console.error('Error obteniendo voces:', error);
-        return throwError(() => new Error('No se pudo obtener la lista de voces'));
+        console.error('Error loading TikTok voices:', error);
+        return throwError(() => new Error('The TikTok voice list could not be loaded'));
       })
     );
   }
@@ -59,8 +59,8 @@ export class TtsService {
         preview: 'Hola, esta es una prueba de voz.'
       }))),
       catchError(error => {
-        console.error('Error obteniendo voces Google:', error);
-        return throwError(() => new Error('No se pudo obtener voces de Google'));
+        console.error('Error loading Google voices:', error);
+        return throwError(() => new Error('The Google voice list could not be loaded'));
       })
     );
   }
@@ -107,7 +107,7 @@ export class TtsService {
       { headers: new HttpHeaders({ 'Content-Type': 'application/json' }) }
     ).pipe(
       map((response): ChunkAudio => {
-        if (!response?.data) throw new Error('Sin data en respuesta');
+        if (!response?.data) throw new Error('No audio data received from TikTok TTS API');
 
         const base64 = response.data;
 
@@ -220,7 +220,7 @@ export class TtsService {
       }
     }
 
-    if (buffers.length === 0) throw new Error('No hay audio para exportar');
+    if (buffers.length === 0) throw new Error('No audio to export after decoding');
 
     const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
     const sampleRate = buffers[0].sampleRate;
@@ -320,7 +320,7 @@ export class TtsService {
       }
     }
 
-    if (buffers.length === 0) throw new Error('No hay audio para exportar');
+    if (buffers.length === 0) throw new Error('No audio to merge after decoding');
 
     const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
     const sampleRate = buffers[0].sampleRate;

@@ -16,11 +16,11 @@ let googleValidVoices = null;
 app.get('/api/tts/tiktok/voices', async (req, res) => {
   // Si ya las validamos, devolvemos el cache
   if (tiktokValidVoices) {
-    console.log('[TikTok] Devolviendo voces del cache');
+    console.log('[TikTok] Returning cache voices');
     return res.json({ voices: tiktokValidVoices });
   }
 
-  console.log('[TikTok] Validando voces...');
+  console.log('[TikTok] Validating voices...');
 
   const allVoices = [
     { id: 'en_us_001', name: 'Jessie', language: 'en-US' },
@@ -98,7 +98,7 @@ app.get('/api/tts/tiktok/voices', async (req, res) => {
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value);
 
-  console.log(`[TikTok] ${tiktokValidVoices.length}/${allVoices.length} voces válidas`);
+  console.log(`[TikTok] ${tiktokValidVoices.length}/${allVoices.length} valid voices`);
   res.json({ voices: tiktokValidVoices });
 });
 
@@ -122,11 +122,11 @@ app.post('/api/tts/tiktok', async (req, res) => {
 
 app.get('/api/tts/google/voices', async (req, res) => {
   if (googleValidVoices) {
-    console.log('[Google] Devolviendo voces del cache');
+    console.log('[Google] Returning cache voices');
     return res.json({ voices: googleValidVoices });
   }
 
-  console.log('[Google] Validando voces...');
+  console.log('[Google] Validating voices...');
 
   const allVoices = [
     { id: 'es', name: 'Español', language: 'es' },
@@ -161,7 +161,7 @@ app.get('/api/tts/google/voices', async (req, res) => {
         return null;
 
       } catch (e) {
-        console.log(`❌ [Google] ${voice.id}: error de red`);
+        console.log(`❌ [Google] ${voice.id}: network error`);
         return null;
       }
     })
@@ -171,7 +171,7 @@ app.get('/api/tts/google/voices', async (req, res) => {
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value);
 
-  console.log(`[Google] ${googleValidVoices.length}/${allVoices.length} voces válidas`);
+  console.log(`[Google] ${googleValidVoices.length}/${allVoices.length} valid voices`);
   res.json({ voices: googleValidVoices });
 });
 
