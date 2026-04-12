@@ -128,6 +128,13 @@ Uses the Web Audio API to:
 ### CORS Solution
 Both TTS endpoints block browser requests (CORS). Azure Functions act as a server-to-server proxy — server-to-server requests have no CORS restrictions, equivalent to `IHttpClientFactory` in .NET calling an external API.
 
+### Batch Processing & Retry
+To avoid rate limiting on TikTok TTS (which rejects too many simultaneous requests):
+- Chunks are processed in batches — 3 at a time for TikTok, 5 for Google
+- If a chunk fails, it retries with exponential backoff (500ms × attempt for Google, 1000ms × attempt for TikTok)
+- Equivalent to `Polly` retry policies in .NET
+- If all retries fail, the chunk is skipped and playback continues with the rest
+
 ---
 
 ## 🚀 Running Locally
@@ -214,6 +221,10 @@ To deploy your own instance:
 - 📦 **Azure Functions** — migrated from local Express proxy to Azure Functions for serverless deployment
 - 🚀 **CI/CD** — automated deployment via GitHub Actions on every push to main
 - ✅ **Voice validation** — invalid/unavailable voices are filtered on startup and cached in memory
+### v1.2.0
+- ⚡ **Batch processing** — TikTok TTS requests are processed in batches of 3 to avoid rate limiting. Google TTS in batches of 5
+- 🔄 **Automatic retry** — failed chunks are retried automatically (TikTok: 3 attempts, Google: 2 attempts) with exponential backoff before being discarded
+- 🔇 **Silent chunk failure** — if a chunk fails after all retries, playback continues with the remaining chunks instead of stopping entirely
 
 ---
 
