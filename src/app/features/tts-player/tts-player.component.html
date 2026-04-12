@@ -59,7 +59,7 @@
           <button
             class="preview-btn"
             (click)="voicePreview(voice, $event)"
-            title="Escuchar preview"
+            title="Listen preview"
             [disabled]="previewingVoiceId() === voice.id">
             {{ previewingVoiceId() === voice.id ? '...' : '▶' }}
           </button>
@@ -87,6 +87,7 @@
         <textarea
           [(ngModel)]="inputText"
           class="text-input"
+          spellcheck="false"
           placeholder="Write or paste the text you want to convert to audio..."
           rows="8">
         </textarea>
