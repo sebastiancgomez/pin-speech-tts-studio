@@ -68,6 +68,14 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    let tiktokReady = false;
+    let googleReady = false;
+
+    const checkBothReady = () => {
+      if (tiktokReady && googleReady) {
+        this.loadingVoices.set(false);
+      }
+    };
     // Cargamos ambos servicios en paralelo — como Task.WhenAll() en C#
     this.ttsService.getTiktokVoices().subscribe({
       next: voices => {
@@ -76,8 +84,16 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
           this.selectedVoice = voices[0] ?? null;
         }
         console.log(`✅ ${voices.length} voices TikTok`);
+        tiktokReady = true;
+        checkBothReady();
       },
-      error: err => this.errorMessage.set('Error loading TikTok voices: ' + err.message)
+      error: err => {
+        this.ngZone.run(() => {
+          this.errorMessage.set('Error loading TikTok voices: ' + err.message);
+          tiktokReady = true; // aunque falle, marcamos como listo para no bloquear
+          checkBothReady();
+        });
+      }
     });
 
     this.ttsService.getGoogleVoices().subscribe({
@@ -86,12 +102,14 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         if (this.activeService === 'google') {
           this.selectedVoice = voices[0] ?? null;
         }
-        this.loadingVoices.set(false);
         console.log(`✅ ${voices.length} voices Google`);
+        googleReady = true;
+        checkBothReady();
       },
       error: err => {
         this.errorMessage.set('Error loading Google voices: ' + err.message);
-        this.loadingVoices.set(false);
+        googleReady = true; 
+        checkBothReady();
       }
     });
   }
