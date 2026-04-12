@@ -201,12 +201,25 @@ To deploy your own instance:
 - **Google TTS** uses the free translate endpoint — not intended for production use at scale
 - Voice cache resets when Azure restarts the Function instance
 - Audio export produces WAV format (browsers cannot natively encode MP3)
+- **Chunk gap** — small pause between chunks during playback, inherent to the HTML audio element model
+
+---
+
+## 🔄 Changelog
+
+### v1.1.0
+- ⚡ **Instant export** — audio buffer is pre-merged in the background while playing, export is now instantaneous
+- 🔧 **Fixed chunks signal** — replaced `.map()` on sparse arrays with local array + spread update for correct Angular reactivity
+- 🔇 **Fixed stop error** — suppressed false `onerror` triggered when stopping playback
+- 📦 **Azure Functions** — migrated from local Express proxy to Azure Functions for serverless deployment
+- 🚀 **CI/CD** — automated deployment via GitHub Actions on every push to main
+- ✅ **Voice validation** — invalid/unavailable voices are filtered on startup and cached in memory
 
 ---
 
 ## 👨‍💻 Author
 
-**Sebastián** — Backend .NET developer transitioning to Full Stack  
+**Juan Sebastián Cárdenas** — Backend .NET developer transitioning to Full Stack  
 Built as a learning project for Angular, Azure, and CI/CD pipelines.
 
 Dedicated to **Pin** ❤️
