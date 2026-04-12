@@ -160,7 +160,7 @@ export class TtsService {
            `&textlen=${encodedText.length}&q=${encodedText}&tl=${language}&ttsspeed=1`;
   }
 
-  private readonly GOOGLE_URL = 'http://localhost:3000/api/tts/google';
+  private readonly GOOGLE_URL = '/api/tts/google';
 
   getGoogleUrls(text: string, language: string): string[] {
     const chunks = this.divideIntoChunks(text, 180);
