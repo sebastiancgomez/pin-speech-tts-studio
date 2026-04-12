@@ -188,10 +188,13 @@ export class TtsService {
   }
 
   async mergeAndDownloadAudio(chunks: ChunkAudio[], fileName: string): Promise<void> {
+    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
+  
+    if (validChunks.length === 0) throw new Error('No valid chunks to export');
     const audioContext = new AudioContext();
     const buffers: AudioBuffer[] = [];
 
-    for (const chunk of chunks) {
+    for (const chunk of validChunks) {
       let arrayBuffer: ArrayBuffer;
 
       if (chunk.base64) {
@@ -289,5 +292,60 @@ export class TtsService {
     a.download = nombre;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async mergeBuffersInBackground(chunks: ChunkAudio[]): Promise<AudioBuffer> {
+    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
+    const audioContext = new AudioContext();
+    const buffers: AudioBuffer[] = [];
+
+    for (const chunk of validChunks) {
+      let arrayBuffer: ArrayBuffer;
+      if (chunk.base64) {
+        const byteCharacters = atob(chunk.base64);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        arrayBuffer = byteArray.buffer;
+      } else if (chunk.blob) {
+        arrayBuffer = await chunk.blob.arrayBuffer();
+      } else continue;
+
+      try {
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        buffers.push(audioBuffer);
+      } catch (e) {
+        console.warn('Error decodificando chunk:', e);
+      }
+    }
+
+    if (buffers.length === 0) throw new Error('No hay audio para exportar');
+
+    const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
+    const sampleRate = buffers[0].sampleRate;
+    const channels = buffers[0].numberOfChannels;
+    const mergedBuffer = audioContext.createBuffer(
+      channels,
+      Math.ceil(fullLength * sampleRate),
+      sampleRate
+    );
+
+    let actualOffset = 0;
+    for (const buffer of buffers) {
+      for (let channel = 0; channel < channels; channel++) {
+        mergedBuffer.getChannelData(channel).set(
+          buffer.getChannelData(channel), actualOffset
+        );
+      }
+      actualOffset += buffer.length;
+    }
+
+    return mergedBuffer;
+  }
+
+  downloadWav(buffer: AudioBuffer, fileName: string): void {
+    const wavBlob = this.audioBufferToWav(buffer);
+    this.downloadBlob(wavBlob, fileName + '.wav');
   }
 }

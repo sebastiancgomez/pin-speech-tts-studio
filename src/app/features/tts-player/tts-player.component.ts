@@ -19,6 +19,8 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   @ViewChild('audioPlayer') audioPlayerRef!: ElementRef<HTMLAudioElement>;
   @ViewChild('audioPreview') audioPreviewRef!: ElementRef<HTMLAudioElement>;
 
+  private isStopping = false;
+
   activeService: ServiceTTS = 'tiktok';
   selectedVoice: VoiceTTS | null = null;
   inputText = '';
@@ -29,7 +31,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   progress = signal(0);
   isPlaying = signal(false);
   errorMessage = signal('');
-  succesMessage = signal('');
+  successMessage = signal('');
   audioQueue = signal<string[]>([]);
   currentIndex = signal(0);
   tiktokVoices = signal<VoiceTTS[]>([]);
@@ -41,6 +43,8 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   loadingVoices = signal(true);  // nueva propiedad
   isPaused = signal(false);
   previewingVoiceId = signal<string | null>(null);
+  allChunksDownloaded = signal(false);
+  mergedBuffer: AudioBuffer | null = null;
 
   get activeVoices(): VoiceTTS[] {
     return this.activeService === 'tiktok' ? this.tiktokVoices() : this.googleVoices();
@@ -95,7 +99,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.selectedVoice = service === 'tiktok' ? this.tiktokVoices()[0] : this.googleVoices()[0];
     this.cleanUpPlayback();
     this.errorMessage.set('');
-    this.succesMessage.set('');
+    this.successMessage.set('');
   }
 
   selectVoice(voice: VoiceTTS): void {
@@ -133,13 +137,14 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.succesMessage.set('');
+    this.successMessage.set('');
     this.chunks.set([]);
     this.audioQueue.set([]);
     this.currentIndex.set(0);
     this.progress.set(0);
     this.isBufferReady.set(false);
     this.isDowloadingInBackground.set(false);
+    this.allChunksDownloaded.set(false);
 
     await new Promise(r => setTimeout(r, 50));
 
@@ -162,11 +167,15 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
     console.log(`📝 Google chunks: ${total} | Umbral: ${umbralBuffer}`);
 
-    this.chunks.set(new Array(total));
-    this.audioQueue.set(new Array(total).fill(null));
+    // Array LOCAL mutable
+    const chunksArr: ChunkAudio[] = new Array(total);
+    const queueArr: string[] = new Array(total).fill('');
+
+    this.chunks.set([]);
+    this.audioQueue.set([]);
+
     let downloaded = 0;
     let isPlaybackStarted = false;
-
     this.isDowloadingInBackground.set(true);
 
     const promises = textChunks.map((texto, i) =>
@@ -175,9 +184,12 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       ).then(chunk => {
         if (!this.isDowloadingInBackground()) return;
 
-        this.chunks.set(this.chunks().map((v, j) => j === i ? chunk : v));
-        this.audioQueue.set(this.audioQueue().map((v, j) => j === i ? chunk.blobUrl : v));
+        chunksArr[i] = chunk;
+        queueArr[i] = chunk.blobUrl;
         downloaded++;
+
+        this.chunks.set([...chunksArr]);
+        this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
         console.log(`✅ Google chunk ${i + 1}/${total} listo`);
@@ -194,57 +206,59 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       })
     );
 
-    /*await Promise.allSettled(promesas);
-    this.descargandoEnFondo = false;
-
-    if (!reproduccionIniciada && this.chunks.filter(Boolean).length > 0) {
-      this.bufferListo.set(true);
-      this.estaCargando.set(false);
-      this.reproducirSiguiente();
-    }*/
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
-    console.log('✅ Todos los chunks descargados');
+    // Pre-combinamos en segundo plano — el export será instantáneo
+    console.log('🔄 Pre-combinando audio...');
+    this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
+      this.chunks().filter(Boolean)
+    );
+    console.log('✅ Audio pre-combinado listo');
+    this.allChunksDownloaded.set(true);
+    console.log('✅ Todos los chunks descargados, Exportar habilitado');
 
-    // Si el reproductor está esperando en el último chunk nulo, lo despertamos
     if (this.isPlaying()) {
       this.playNext();
-    }
   }
+}
 
   private async generateTiktokWithBuffer(): Promise<void> {
     const textChunks = this.ttsService.divideIntoChunks(this.inputText, 300);
     const total = textChunks.length;
     const umbralBuffer = Math.max(1, Math.ceil(total * 0.5));
-    
+
     console.log(`📝 Total chunks: ${total} | Umbral buffer: ${umbralBuffer}`);
 
-    // Array con slots vacíos — se van llenando conforme llegan las descargas
-    // Equivalente a Task[] en C# con resultados en posiciones fijas
-    this.chunks.set(new Array(total));
-    this.audioQueue.set(new Array(total).fill(null));
+    // Array LOCAL mutable — no el signal directamente
+    const chunksArr: ChunkAudio[] = new Array(total);
+    const queueArr: string[] = new Array(total).fill('');
+    
+    // Inicializamos los signals vacíos
+    this.chunks.set([]);
+    this.audioQueue.set([]);
+    
     let downloaded = 0;
     let isPlaybackStarted = false;
-
     this.isDowloadingInBackground.set(true);
 
-    // Lanzamos TODAS las descargas en paralelo — como Task.WhenAll() en C#
-    // pero cada una al terminar actualiza su slot correspondiente
     const promises = textChunks.map((texto, i) =>
       firstValueFrom(
         this.ttsService.generateTiktokAudio(texto, this.selectedVoice!.id)
       ).then(chunk => {
         if (!this.isDowloadingInBackground()) return;
 
-        // Guardamos en la posición correcta — el orden se preserva
-        this.chunks.set(this.chunks().map((v, j) => j === i ? chunk : v));
-        this.audioQueue.set(this.audioQueue().map((v, j) => j === i ? chunk.blobUrl : v));
+        // Actualizamos el array local
+        chunksArr[i] = chunk;
+        queueArr[i] = chunk.blobUrl;
         downloaded++;
+
+        // Actualizamos los signals con spread para que Angular detecte el cambio
+        this.chunks.set([...chunksArr]);
+        this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
         console.log(`✅ Chunk ${i + 1}/${total} listo`);
 
-        // Iniciamos reproducción cuando alcanzamos el umbral
         if (downloaded >= umbralBuffer && !isPlaybackStarted) {
           isPlaybackStarted = true;
           this.isBufferReady.set(true);
@@ -258,12 +272,16 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       })
     );
 
-    // Esperamos que todas las descargas terminen
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
-    console.log('✅ Todos los chunks descargados');
+    console.log('🔄 Pre-combinando audio...');
+    this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
+      this.chunks().filter(Boolean)
+    );
+    console.log('✅ Audio pre-combinado listo');
+    this.allChunksDownloaded.set(true);
+    console.log('✅ Todos los chunks descargados, Exportar habilitado');
 
-    // Edge case: si solo hay 1 chunk y no se inició la reproducción
     if (!isPlaybackStarted && this.chunks().filter(Boolean).length > 0) {
       this.isBufferReady.set(true);
       this.isLoading.set(false);
@@ -286,7 +304,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       this.ngZone.run(() => {
         this.isPlaying.set(false);
         this.isDowloadingInBackground.set(false);
-        this.succesMessage.set('✓ Reproducción completada');
+        this.successMessage.set('✓ Reproducción completada');
       });
       return;
     }
@@ -313,6 +331,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     };
 
     audioEl.onerror = () => {
+      if (this.isStopping) return;
       console.warn(`Error en chunk ${this.currentIndex()}, saltando...`);
       this.currentIndex.set(this.currentIndex() + 1);
       this.ngZone.run(() => this.playNext());
@@ -339,10 +358,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   stop(): void {
+    this.isStopping = true;
     this.isDowloadingInBackground.set(false);  // detiene el loop de descarga
     this.isPaused.set(false);
     this.cleanUpPlayback();
-    this.succesMessage.set('');
+    this.successMessage.set('');
     this.errorMessage.set('');
   }
 
@@ -363,17 +383,19 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.isLoading.set(false);
     this.isBufferReady.set(false);
     this.isDowloadingInBackground.set(false);
+    this.mergedBuffer = null;
   }
 
   async exportAudio(): Promise<void> {
-    if (this.chunks.length === 0) {
-      this.errorMessage.set('Primero genera el audio antes de exportar');
+    if (!this.mergedBuffer) {
+      this.errorMessage.set('El audio aún se está procesando, espera un momento');
       return;
     }
+
     this.isLoading.set(true);
     try {
-      await this.ttsService.mergeAndDownloadAudio(this.chunks(), 'tts-output');
-      this.succesMessage.set(`✓ Audio exportado (${this.chunks.length} chunks combinados)`);
+      this.ttsService.downloadWav(this.mergedBuffer, 'pinspeech-output');
+      this.successMessage.set(`✓ Audio exported successfully`);
     } catch (e: any) {
       this.errorMessage.set('Error al exportar: ' + e.message);
     } finally {

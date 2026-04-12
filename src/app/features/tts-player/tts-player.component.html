@@ -152,8 +152,8 @@
         <button
           class="btn btn-export"
           (click)="exportAudio()"
-          [disabled]="chunks().length === 0 || isLoading()">
-          ↓ Export audio
+          [disabled]="!allChunksDownloaded() || isLoading()">
+          {{ chunks().length ===0 || allChunksDownloaded() ? '↓ Export audio' : 'Downloading... ' + progress() + '%' }}
         </button>
       </div>
 
@@ -166,8 +166,8 @@
       <div class="alert alert-error" *ngIf="errorMessage()">
         ✕ {{ errorMessage() }}
       </div>
-      <div class="alert alert-success" *ngIf="succesMessage()">
-        ✓ {{ succesMessage() }}
+      <div class="alert alert-success" *ngIf="successMessage()">
+        ✓ {{ successMessage() }}
       </div>
 
       <!-- Reproductor de audio (oculto — lo controlamos por código) -->
