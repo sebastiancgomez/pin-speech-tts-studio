@@ -51,12 +51,9 @@ const ALL_VOICES = [
 
 module.exports = async function (context, req) {
   if (cachedVoices) {
-    console.log('[TikTok Voices] Returning cached voices');
     context.res = { status: 200, body: { voices: cachedVoices } };
     return;
   }
-
-  console.log('[TikTok Voices] Validating voices...');
 
   const results = await Promise.allSettled(
     ALL_VOICES.map(async voice => {
@@ -68,13 +65,10 @@ module.exports = async function (context, req) {
         });
         const data = await response.json();
         if (data.success && data.data) {
-          console.log(`✅ ${voice.id}`);
           return voice;
         }
-        console.log(`❌ ${voice.id}: ${data.error}`);
         return null;
       } catch {
-        console.log(`❌ ${voice.id}: network error`);
         return null;
       }
     })
@@ -84,6 +78,5 @@ module.exports = async function (context, req) {
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value);
 
-  console.log(`[TikTok Voices] ${cachedVoices.length}/${ALL_VOICES.length} valid`);
   context.res = { status: 200, body: { voices: cachedVoices } };
 };

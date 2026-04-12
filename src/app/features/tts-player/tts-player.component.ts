@@ -171,8 +171,6 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     const total = textChunks.length;
     const umbralBuffer = Math.max(1, Math.ceil(total * 0.5));
 
-    console.log(`📝 Google chunks: ${total} | Umbral: ${umbralBuffer}`);
-
     // Array LOCAL mutable
     const chunksArr: ChunkAudio[] = new Array(total);
     const queueArr: string[] = new Array(total).fill('');
@@ -198,8 +196,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
-        console.log(`✅ Google chunk ${i + 1}/${total} ready`);
-
+        
         if (downloaded >= umbralBuffer && !isPlaybackStarted) {
           isPlaybackStarted = true;
           this.isBufferReady.set(true);
@@ -215,14 +212,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
     // Pre-combinamos en segundo plano — el export será instantáneo
-    console.log('🔄 Pre-combining audio...');
     this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
       this.chunks().filter(Boolean)
     );
-    console.log('✅ Pre-combined audio is ready');
     this.allChunksDownloaded.set(true);
-    console.log('✅ All chunks downloaded, Export enabled');
-
+    
     if (this.isPlaying()) {
       this.playNext();
   }
@@ -232,8 +226,6 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     const textChunks = this.ttsService.divideIntoChunks(this.inputText, 300);
     const total = textChunks.length;
     const umbralBuffer = Math.max(1, Math.ceil(total * 0.5));
-
-    console.log(`📝 Total chunks: ${total} | Umbral buffer: ${umbralBuffer}`);
 
     // Array LOCAL mutable — no el signal directamente
     const chunksArr: ChunkAudio[] = new Array(total);
@@ -263,13 +255,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         this.audioQueue.set([...queueArr]);
 
         this.progress.set(Math.round((downloaded / total) * 100));
-        console.log(`✅ Chunk ${i + 1}/${total} ready`);
-
+        
         if (downloaded >= umbralBuffer && !isPlaybackStarted) {
           isPlaybackStarted = true;
           this.isBufferReady.set(true);
           this.isLoading.set(false);
-          console.log(`▶ Starting playback with ${downloaded} chunks ready`);
           this.playNext();
         }
       }).catch(error => {
@@ -280,14 +270,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
     await Promise.allSettled(promises);
     this.isDowloadingInBackground.set(false);
-    console.log('🔄 Pre-combining audio...');
     this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(
       this.chunks().filter(Boolean)
     );
-    console.log('✅ Pre-combined audio is ready');
     this.allChunksDownloaded.set(true);
-    console.log('✅ All chunks downloaded, Export enabled');
-
+    
     if (!isPlaybackStarted && this.chunks().filter(Boolean).length > 0) {
       this.isBufferReady.set(true);
       this.isLoading.set(false);
@@ -296,21 +283,15 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   playNext(): void {
-    console.log('🔄 playNext called:', {
-      currentIndex: this.currentIndex,
-      queueLength: this.audioQueue().length,
-      isDownloadingInBackground: this.isDowloadingInBackground,
-      audioQueue: this.audioQueue().map(u => u ? '✅' : '❌')
-    });
+    
 
     // Con índice 5 y longitud 5, esta condición ES true — si no entra, 
     // hay algo más ejecutándose después que vuelve a llamar reproducirSiguiente
     if (this.currentIndex() >= this.audioQueue().length) {
-      console.log('🏁 END of queue detected');
-      this.ngZone.run(() => {
+        this.ngZone.run(() => {
         this.isPlaying.set(false);
         this.isDowloadingInBackground.set(false);
-        this.successMessage.set('✓ Playback completed');
+        this.successMessage.set('Playback completed');
       });
       return;
     }
@@ -318,7 +299,6 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     const currentUrl = this.audioQueue()[this.currentIndex()];
 
     if (!currentUrl) {
-      console.log(`⏳ Waiting for chunk ${this.currentIndex() + 1}...`);
       setTimeout(() => this.playNext(), 200);
       return;
     }
@@ -329,7 +309,6 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     audioEl.onerror = null;
 
     audioEl.onended = () => {
-      console.log(`🎵 Chunk ${this.currentIndex()} finished`);
       this.currentIndex.set(this.currentIndex() + 1);
       // NgZone.run() garantiza que Angular detecta los cambios
       // desde eventos DOM nativos que ocurren fuera de su zona

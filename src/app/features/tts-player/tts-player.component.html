@@ -178,8 +178,15 @@
       <div class="queue-info" *ngIf="chunks().length > 0 || isLoading()">
         <span class="queue-label">Queue:</span>
         <span class="queue-count">
-          {{ currentIndex() + 1 }} / {{ audioQueue().length }}
-          <span *ngIf="isDowloadingInBackground() && progress() < 100" style="color: var(--color-text-muted)">
+          <!-- Solo mostramos el contador si no terminó -->
+          <ng-container *ngIf="!successMessage()">
+            {{ currentIndex() + 1 }} / {{ audioQueue().length }}
+          </ng-container>
+          <ng-container *ngIf="successMessage()">
+            {{ audioQueue().length }} / {{ audioQueue().length }}
+          </ng-container>
+          <span *ngIf="isDowloadingInBackground() && progress() < 100" 
+                style="color: var(--color-text-muted)">
             (downloading... {{ progress() }}%)
           </span>
         </span>

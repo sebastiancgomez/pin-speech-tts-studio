@@ -16,11 +16,8 @@ let googleValidVoices = null;
 app.get('/api/tts/tiktok/voices', async (req, res) => {
   // Si ya las validamos, devolvemos el cache
   if (tiktokValidVoices) {
-    console.log('[TikTok] Returning cache voices');
     return res.json({ voices: tiktokValidVoices });
   }
-
-  console.log('[TikTok] Validating voices...');
 
   const allVoices = [
     { id: 'en_us_001', name: 'Jessie', language: 'en-US' },
@@ -80,14 +77,11 @@ app.get('/api/tts/tiktok/voices', async (req, res) => {
         const data = await response.json();
 
         if (data.success && data.data) {
-          console.log(`✅ [TikTok] ${voice.id}`);
           return voice;  // voz válida
         }
-        console.log(`❌ [TikTok] ${voice.id}: ${data.error}`);
         return null;  // voz no disponible
 
       } catch (e) {
-        console.log(`❌ [TikTok] ${voice.id}: error de red`);
         return null;
       }
     })
@@ -98,14 +92,12 @@ app.get('/api/tts/tiktok/voices', async (req, res) => {
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value);
 
-  console.log(`[TikTok] ${tiktokValidVoices.length}/${allVoices.length} valid voices`);
   res.json({ voices: tiktokValidVoices });
 });
 
 // ─── TikTok TTS ───────────────────────────────────────────────────────────────
 app.post('/api/tts/tiktok', async (req, res) => {
   const { text, voice } = req.body;
-  console.log(`[TikTok] voz: ${voice} | texto: "${text?.substring(0, 50)}"`);
   try {
     const response = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
       method: 'POST',
@@ -122,11 +114,8 @@ app.post('/api/tts/tiktok', async (req, res) => {
 
 app.get('/api/tts/google/voices', async (req, res) => {
   if (googleValidVoices) {
-    console.log('[Google] Returning cache voices');
     return res.json({ voices: googleValidVoices });
   }
-
-  console.log('[Google] Validating voices...');
 
   const allVoices = [
     { id: 'es', name: 'Español', language: 'es' },
@@ -154,14 +143,11 @@ app.get('/api/tts/google/voices', async (req, res) => {
         // Google devuelve audio binario — si el content-type es audio, es válida
         const contentType = response.headers.get('content-type') || '';
         if (response.ok && contentType.includes('audio')) {
-          console.log(`✅ [Google] ${voice.id}`);
           return voice;
         }
-        console.log(`❌ [Google] ${voice.id}: ${response.status}`);
         return null;
 
       } catch (e) {
-        console.log(`❌ [Google] ${voice.id}: network error`);
         return null;
       }
     })
@@ -170,8 +156,7 @@ app.get('/api/tts/google/voices', async (req, res) => {
   googleValidVoices = results
     .filter(r => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value);
-
-  console.log(`[Google] ${googleValidVoices.length}/${allVoices.length} valid voices`);
+  
   res.json({ voices: googleValidVoices });
 });
 
@@ -179,11 +164,8 @@ app.get('/api/tts/google/voices', async (req, res) => {
 // Google TTS devuelve audio binario directamente (no JSON)
 // El proxy lo recibe y lo reenvía como stream al browser
 app.get('/api/tts/google', async (req, res) => {
-  const { text, lang } = req.query;
-  console.log(`[Google] lang: ${lang} | texto: "${text?.substring(0, 50)}"`);
-  
+  const { text, lang } = req.query;  
   const url = `https://translate.google.com/translate_tts?ie=UTF-8&total=1&idx=0&client=tw-ob&prev=input&textlen=${text.length}&q=${encodeURIComponent(text)}&tl=${lang}&ttsspeed=1`;
-   console.log(url);
   try {
     const response = await fetch(url, {
       headers: {
