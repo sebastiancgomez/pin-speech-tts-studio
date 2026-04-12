@@ -137,7 +137,7 @@
           class="btn btn-secondary"
           (click)="pauseOrResume()"
           [disabled]="!isPlaying() && !isPaused()">
-          {{ isPaused() ? '▶ Resume' : '⏸ Pause' }}
+          {{ isPaused() ? '▶ Reanudar' : '⏸ Pausar' }}
         </button>
 
         <!-- Stop: habilitado si está cargando, reproduciendo o pausado -->
@@ -145,7 +145,7 @@
           class="btn btn-ghost"
           (click)="stop()"
           [disabled]="!isPlaying() && !isPaused() && !isLoading()">
-          ⏹ Stop
+          ⏹ Detener
         </button>
 
         <!-- Export: habilitado si hay chunks aunque esté reproduciendo -->
@@ -153,7 +153,7 @@
           class="btn btn-export"
           (click)="exportAudio()"
           [disabled]="!allChunksDownloaded() || isLoading()">
-          {{ chunks().length ===0 || allChunksDownloaded() ? '↓ Export audio' : 'Downloading... ' + progress() + '%' }}
+          {{ chunks().length ===0 || allChunksDownloaded() ? '↓ Exportar audio' : 'Descargando... ' + progress() + '%' }}
         </button>
       </div>
 
