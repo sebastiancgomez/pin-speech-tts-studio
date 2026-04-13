@@ -8,6 +8,7 @@ import { TtsService } from '../../../core/services/tts.services';
 import { VoiceTTS, ServiceTTS, ChunkAudio  } from '../../../shared/models/tts.models';
 import { mergeBuffersInBackground, downloadWav } from '../../../core/utils/audio.utils';
 import { PlayerService } from '../services/player.service';
+import { extractTextFromFile } from '../../../core/utils/file.utils';
 
 @Component({
   selector: 'app-tts-player',
@@ -48,6 +49,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   previewingVoiceId = signal<string | null>(null);
   allChunksDownloaded = signal(false);
   mergedBuffer: AudioBuffer | null = null;
+  isExtractingFile = signal(false);
 
   get activeVoices(): VoiceTTS[] {
     return this.activeService === 'tiktok' ? this.tiktokVoices() : this.googleVoices();
@@ -348,6 +350,27 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     // Aplicamos inmediatamente si está reproduciendo
     if (this.audioPlayerRef) {
       this.audioPlayerRef.nativeElement.playbackRate = val;
+    }
+  }
+
+  async onFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.isExtractingFile.set(true);
+    this.errorMessage.set('');
+
+    try {
+      const text = await extractTextFromFile(file);
+      this.inputText = text;
+      this.successMessage.set(`File loaded — ${text.length} characters extracted`);
+    } catch (e: any) {
+      this.errorMessage.set('Error reading file: ' + e.message);
+    } finally {
+      this.isExtractingFile.set(false);
+      // Limpiamos el input para permitir subir el mismo archivo de nuevo
+      input.value = '';
     }
   }
 }

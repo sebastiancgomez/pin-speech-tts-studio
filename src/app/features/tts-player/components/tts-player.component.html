@@ -83,14 +83,30 @@
             {{ inputText.length }} chars · {{ chunksTotal }} chunk{{ chunksTotal !== 1 ? 's' : '' }}
           </span>
         </label>
+        <div class="input-section">
+          <!-- Upload de archivo -->
+          <div class="file-upload-row">
+            <label class="btn-file" [class.loading]="isExtractingFile()">
+              <input
+                type="file"
+                accept=".pdf,.docx,.doc"
+                (change)="onFileSelected($event)"
+                [disabled]="isExtractingFile()"
+                style="display:none">
+              {{ isExtractingFile() ? 'Reading file...' : '📄 Upload PDF or Word' }}
+            </label>
+            <span class="file-hint">PDF, DOC, DOCX supported</span>
+          </div>
+
+          <textarea
+            [(ngModel)]="inputText"
+            class="text-input"
+            spellcheck="false"
+            placeholder="Write or paste text here, or upload a file above..."
+            rows="8">
+          </textarea>
+        </div>
         <!-- [(ngModel)] sincroniza en ambas direcciones el valor del textarea con inputText -->
-        <textarea
-          [(ngModel)]="inputText"
-          class="text-input"
-          spellcheck="false"
-          placeholder="Write or paste the text you want to convert to audio..."
-          rows="8">
-        </textarea>
       </div>
 
       <!-- Controles de volume -->

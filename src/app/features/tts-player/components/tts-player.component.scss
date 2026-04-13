@@ -532,6 +532,41 @@ $color-error: #f76a6a;
   }
 }
 
+// ─── Carga de archivos ────────────────────────────────────────────────────────
+.file-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+
+  .btn-file {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid $color-border-strong;
+    color: $color-text;
+    background: transparent;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: $color-surface-2;
+    }
+
+    &.loading {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .file-hint {
+    font-size: 0.72rem;
+    color: $color-text-muted;
+    font-family: $font-mono;
+  }
+}
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.4); }
