@@ -9,6 +9,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, from, throwError, of, firstValueFrom} from 'rxjs';
 import { map, catchError, switchMap } from 'rxjs/operators';
 import { VoiceTTS, ChunkAudio  } from '../../shared/models/tts.models'; // ajusta el path según tu estructura
+import { audioBufferToWav, downloadBlob, base64ToBlob, mergeBuffersInBackground, mergeAndDownloadAudio, downloadWav } from '../utils/audio.utils';
 
 
 @Injectable({
@@ -112,42 +113,13 @@ export class TtsService {
         const base64 = response.data;
 
         // Creamos el BlobUrl para reproducción
-        const byteCharacters = atob(base64);
-        const byteArray = new Uint8Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteArray[i] = byteCharacters.charCodeAt(i);
-        }
-        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+        const blob = base64ToBlob(base64);
         const blobUrl = URL.createObjectURL(blob);
 
         return { base64, blobUrl };
       }),
       catchError(error => throwError(() => new Error(`HTTP ${error.status}: ${error.message}`)))
     );
-  }
-
-  // Genera TODOS los chunks de TikTok y retorna array de data URLs
-  // En C#: Task<List<string>> GenerarTodosLosChunks(...)
-  async generateAllTiktok(text: string, voiceId: string): Promise<string[]> {
-    const chunks = this.divideIntoChunks(text, 300);
-    const dataUrls: string[] = [];
-
-    // Procesamos secuencialmente para no saturar el API
-    // Equivalente a foreach con await en C#
-    for (const chunk of chunks) {
-      const url = await this.http.post<{ data: string }>(
-        this.TIKTOK_URL,
-        { text: chunk, voice: voiceId },
-        { headers: new HttpHeaders({ 'Content-Type': 'application/json' }) }
-      ).pipe(
-        map(r => r.data ? `data:audio/mp3;base64,${r.data}` : null),
-        catchError(() => of(null))
-      ).toPromise(); // convierte Observable a Promise (como .Result en C# pero async)
-
-      if (url) dataUrls.push(url);
-    }
-
-    return dataUrls;
   }
 
   // ─── Google TTS ──────────────────────────────────────────────────────────────
@@ -187,165 +159,4 @@ export class TtsService {
     );
   }
 
-  async mergeAndDownloadAudio(chunks: ChunkAudio[], fileName: string): Promise<void> {
-    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
-  
-    if (validChunks.length === 0) throw new Error('No valid chunks to export');
-    const audioContext = new AudioContext();
-    const buffers: AudioBuffer[] = [];
-
-    for (const chunk of validChunks) {
-      let arrayBuffer: ArrayBuffer;
-
-      if (chunk.base64) {
-        // TikTok: tenemos base64
-        const byteCharacters = atob(chunk.base64);
-        const byteArray = new Uint8Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteArray[i] = byteCharacters.charCodeAt(i);
-        }
-        arrayBuffer = byteArray.buffer;
-      } else if (chunk.blob) {
-        // Google: tenemos Blob directamente
-        arrayBuffer = await chunk.blob.arrayBuffer();
-      } else {
-        continue;
-      }
-
-      try {
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        buffers.push(audioBuffer);
-      } catch (e) {
-        console.warn('Error decodificando chunk, saltando:', e);
-      }
-    }
-
-    if (buffers.length === 0) throw new Error('No audio to export after decoding');
-
-    const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
-    const sampleRate = buffers[0].sampleRate;
-    const channels = buffers[0].numberOfChannels;
-    const mergedBuffer = audioContext.createBuffer(
-      channels,
-      Math.ceil(fullLength * sampleRate),
-      sampleRate
-    );
-
-    let actualOffset = 0;
-    for (const buffer of buffers) {
-      for (let channel = 0; channel < channels; channel++) {
-        mergedBuffer.getChannelData(channel).set(
-          buffer.getChannelData(channel), actualOffset
-        );
-      }
-      actualOffset += buffer.length;
-    }
-
-    const wavBlob = this.audioBufferToWav(mergedBuffer);
-    this.downloadBlob(wavBlob, fileName + '.wav');
-  }
-
-  // Convierte AudioBuffer a WAV Blob (formato PCM estándar)
-  private audioBufferToWav(buffer: AudioBuffer): Blob {
-    const numberOfChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const length = buffer.length * numberOfChannels * 2; // 2 bytes por sample (16-bit)
-    const arrayBuffer = new ArrayBuffer(44 + length);
-    const view = new DataView(arrayBuffer);
-
-    // Cabecera WAV (RIFF)
-    const writeString = (offset: number, str: string) => {
-      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-    };
-
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);           // PCM
-    view.setUint16(22, numberOfChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-    view.setUint16(32, numberOfChannels * 2, true);
-    view.setUint16(34, 16, true);          // 16-bit
-    writeString(36, 'data');
-    view.setUint32(40, length, true);
-
-    // Datos de audio (interleaved)
-    let offset = 44;
-    for (let i = 0; i < buffer.length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        offset += 2;
-      }
-    }
-
-    return new Blob([arrayBuffer], { type: 'audio/wav' });
-  }
-
-  private downloadBlob(blob: Blob, nombre: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombre;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async mergeBuffersInBackground(chunks: ChunkAudio[]): Promise<AudioBuffer> {
-    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
-    const audioContext = new AudioContext();
-    const buffers: AudioBuffer[] = [];
-
-    for (const chunk of validChunks) {
-      let arrayBuffer: ArrayBuffer;
-      if (chunk.base64) {
-        const byteCharacters = atob(chunk.base64);
-        const byteArray = new Uint8Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteArray[i] = byteCharacters.charCodeAt(i);
-        }
-        arrayBuffer = byteArray.buffer;
-      } else if (chunk.blob) {
-        arrayBuffer = await chunk.blob.arrayBuffer();
-      } else continue;
-
-      try {
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        buffers.push(audioBuffer);
-      } catch (e) {
-        console.warn('Error decodificando chunk:', e);
-      }
-    }
-
-    if (buffers.length === 0) throw new Error('No audio to merge after decoding');
-
-    const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
-    const sampleRate = buffers[0].sampleRate;
-    const channels = buffers[0].numberOfChannels;
-    const mergedBuffer = audioContext.createBuffer(
-      channels,
-      Math.ceil(fullLength * sampleRate),
-      sampleRate
-    );
-
-    let actualOffset = 0;
-    for (const buffer of buffers) {
-      for (let channel = 0; channel < channels; channel++) {
-        mergedBuffer.getChannelData(channel).set(
-          buffer.getChannelData(channel), actualOffset
-        );
-      }
-      actualOffset += buffer.length;
-    }
-
-    return mergedBuffer;
-  }
-
-  downloadWav(buffer: AudioBuffer, fileName: string): void {
-    const wavBlob = this.audioBufferToWav(buffer);
-    this.downloadBlob(wavBlob, fileName + '.wav');
-  }
 }

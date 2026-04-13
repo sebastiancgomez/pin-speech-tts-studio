@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { TtsPlayerComponent } from './features/tts-player/tts-player.component';
+import { TtsPlayerComponent } from './features/tts-player/components/tts-player.component';
 @Component({
   selector: 'app-root',
   standalone: true,

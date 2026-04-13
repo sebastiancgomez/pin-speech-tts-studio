@@ -4,15 +4,18 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { TtsService } from '../../core/services/tts.services';
-import { VoiceTTS, ServiceTTS, ChunkAudio  } from '../../shared/models/tts.models';
+import { TtsService } from '../../../core/services/tts.services';
+import { VoiceTTS, ServiceTTS, ChunkAudio  } from '../../../shared/models/tts.models';
+import { mergeBuffersInBackground, downloadWav } from '../../../core/utils/audio.utils';
+import { PlayerService } from '../services/player.service';
 
 @Component({
   selector: 'app-tts-player',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './tts-player.component.html',
-  styleUrls: ['./tts-player.component.scss']
+  styleUrls: ['./tts-player.component.scss'],
+  providers: [PlayerService]  // ← scoped al componente
 })
 export class TtsPlayerComponent implements OnInit, OnDestroy {
 
@@ -64,6 +67,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
   constructor(
     private ttsService: TtsService,
+    private playerService: PlayerService,
     private ngZone: NgZone
   ) {}
 
@@ -76,6 +80,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         this.loadingVoices.set(false);
       }
     };
+    this.subscribeToPlayerEvents();
     // Cargamos ambos servicios en paralelo — como Task.WhenAll() en C#
     this.ttsService.getTiktokVoices().subscribe({
       next: voices => {
@@ -116,6 +121,39 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cleanUpPlayback();
+  }
+
+  private subscribeToPlayerEvents(): void {
+    // Equivalente a: playerService.ChunkReady += OnChunkReady en C#
+    this.playerService.onChunkReady$.subscribe(({ index, chunk, downloaded, total }) => {
+      this.chunks.update(arr => {
+        const updated = [...arr];
+        updated[index] = chunk;
+        return updated;
+      });
+      this.audioQueue.update(arr => {
+        const updated = [...arr];
+        updated[index] = chunk.blobUrl;
+        return updated;
+      });
+      this.progress.set(Math.round((downloaded / total) * 100));
+    });
+
+    this.playerService.onBufferReady$.subscribe(() => {
+      this.isBufferReady.set(true);
+      this.isLoading.set(false);
+      this.playNext();
+    });
+
+    this.playerService.onAllDownloaded$.subscribe(({ mergedBuffer }) => {
+      this.mergedBuffer = mergedBuffer;
+      this.allChunksDownloaded.set(true);
+      this.isDowloadingInBackground.set(false);
+    });
+
+    this.playerService.onError$.subscribe(({ message }) => {
+      this.errorMessage.set(message);
+    });
   }
 
   changeService(service: ServiceTTS): void {
@@ -159,6 +197,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   async generateAndPlay(): Promise<void> {
     if (!this.inputText.trim() || !this.selectedVoice) return;
 
+    this.playerService.stop();
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
@@ -170,206 +209,24 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.isDowloadingInBackground.set(false);
     this.allChunksDownloaded.set(false);
     this.isPaused.set(false);
+    this.mergedBuffer = null;
 
 
     await new Promise(r => setTimeout(r, 50));
 
     try {
       if (this.activeService === 'tiktok') {
-        await this.generateTiktokWithBuffer();
+        this.playerService.generateTiktokWithBuffer(
+          this.inputText, this.selectedVoice, 0.5
+        );
       } else {
-        await this.generateGoogleWithBuffer();
+        this.playerService.generateGoogleWithBuffer(
+          this.inputText, this.selectedVoice, 0.5
+        );
       }
     } catch (error: any) {
       this.errorMessage.set(error.message || 'Unknown error');
       this.isLoading.set(false);
-    }
-  }
-
-  private async generateGoogleWithBuffer(): Promise<void> {
-    const textChunks = this.ttsService.divideIntoChunks(this.inputText, 180);
-    const total = textChunks.length;
-    const bufferThreshold = Math.max(1, Math.ceil(total * 0.5));
-
-    const chunksArr: ChunkAudio[] = new Array(total);
-    const queueArr: string[] = new Array(total).fill('');
-
-    this.chunks.set([]);
-    this.audioQueue.set([]);
-
-    let downloaded = 0;
-    let isPlaybackStarted = false;
-    this.isDowloadingInBackground.set(true);
-
-    const BATCH_SIZE = 5;
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY_MS = 500;
-
-    const downloadChunkWithRetry = async (texto: string, index: number): Promise<void> => {
-      let lastError: any;
-
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          const chunk = await firstValueFrom(
-            this.ttsService.generateGoogleAudio(texto, this.selectedVoice!.language || 'es')
-          );
-
-          if (!this.isDowloadingInBackground()) return;
-
-          chunksArr[index] = chunk;
-          queueArr[index] = chunk.blobUrl;
-          downloaded++;
-
-          this.chunks.set([...chunksArr]);
-          this.audioQueue.set([...queueArr]);
-          this.progress.set(Math.round((downloaded / total) * 100));
-
-          if (downloaded >= bufferThreshold && !isPlaybackStarted) {
-            isPlaybackStarted = true;
-            this.isBufferReady.set(true);
-            this.isLoading.set(false);
-            this.playNext();
-          }
-
-          return;
-
-        } catch (error: any) {
-          lastError = error;
-          console.warn(`⚠️ Google chunk ${index + 1} attempt ${attempt}/${MAX_RETRIES} failed:`, error?.message);
-
-          if (attempt < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt));
-          }
-        }
-      }
-
-      console.error(`❌ Google chunk ${index + 1} failed after ${MAX_RETRIES} attempts`);
-      this.errorMessage.set(`Warning: chunk ${index + 1} could not be downloaded after ${MAX_RETRIES} attempts`);
-    };
-
-    for (let i = 0; i < total; i += BATCH_SIZE) {
-      if (!this.isDowloadingInBackground()) break;
-
-      const batchIndices = Array.from(
-        { length: Math.min(BATCH_SIZE, total - i) },
-        (_, j) => i + j
-      );
-
-      await Promise.allSettled(
-        batchIndices.map(idx => downloadChunkWithRetry(textChunks[idx], idx))
-      );
-    }
-
-    this.isDowloadingInBackground.set(false);
-
-    const validChunks = chunksArr.filter(Boolean);
-    if (validChunks.length > 0) {
-      this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(validChunks);
-      this.allChunksDownloaded.set(true);
-    }
-
-    if (!isPlaybackStarted && validChunks.length > 0) {
-      this.isBufferReady.set(true);
-      this.isLoading.set(false);
-      this.playNext();
-    }
-  }
-
-  private async generateTiktokWithBuffer(): Promise<void> {
-    const textChunks = this.ttsService.divideIntoChunks(this.inputText, 300);
-    const total = textChunks.length;
-    const bufferThreshold = Math.max(1, Math.ceil(total * 0.5));
-
-    console.log(`📝 Total chunks: ${total} | Buffer threshold: ${bufferThreshold}`);
-
-    const chunksArr: ChunkAudio[] = new Array(total);
-    const queueArr: string[] = new Array(total).fill('');
-
-    this.chunks.set([]);
-    this.audioQueue.set([]);
-
-    let downloaded = 0;
-    let isPlaybackStarted = false;
-    this.isDowloadingInBackground.set(true);
-
-    // Procesamos en batches de 3 para no saturar el API de TikTok
-    // Equivalente a: SemaphoreSlim(3) en C# para limitar concurrencia
-    const BATCH_SIZE = 3;
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 1000;
-
-    // Helper para reintentar un chunk con delay entre intentos
-    const downloadChunkWithRetry = async (texto: string, index: number): Promise<void> => {
-      let lastError: any;
-
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          const chunk = await firstValueFrom(
-            this.ttsService.generateTiktokAudio(texto, this.selectedVoice!.id)
-          );
-
-          if (!this.isDowloadingInBackground()) return;
-
-          chunksArr[index] = chunk;
-          queueArr[index] = chunk.blobUrl;
-          downloaded++;
-
-          this.chunks.set([...chunksArr]);
-          this.audioQueue.set([...queueArr]);
-          this.progress.set(Math.round((downloaded / total) * 100));
-
-          if (downloaded >= bufferThreshold && !isPlaybackStarted) {
-            isPlaybackStarted = true;
-            this.isBufferReady.set(true);
-            this.isLoading.set(false);
-            this.playNext();
-          }
-
-          return; // éxito — salimos del loop de reintentos
-
-        } catch (error: any) {
-          lastError = error;
-          console.warn(`⚠️ Chunk ${index + 1} intento ${attempt}/${MAX_RETRIES} falló:`, error?.message);
-
-          if (attempt < MAX_RETRIES) {
-            // Esperamos antes de reintentar — como Task.Delay() en C#
-            await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt));
-          }
-        }
-      }
-
-      // Si agotamos los reintentos, reportamos el error pero no bloqueamos los demás
-      console.error(`❌ Chunk ${index + 1} falló después de ${MAX_RETRIES} intentos`);
-      this.errorMessage.set(`Warning: chunk ${index + 1} could not be downloaded after ${MAX_RETRIES} attempts`);
-    };
-
-    // Procesamos en batches — lanzamos BATCH_SIZE chunks a la vez
-    for (let i = 0; i < total; i += BATCH_SIZE) {
-      if (!this.isDowloadingInBackground()) break;
-
-      const batchIndices = Array.from(
-        { length: Math.min(BATCH_SIZE, total - i) },
-        (_, j) => i + j
-      );
-
-      await Promise.allSettled(
-        batchIndices.map(idx => downloadChunkWithRetry(textChunks[idx], idx))
-      );
-    }
-
-    this.isDowloadingInBackground.set(false);
-
-    // Pre-combinamos para export instantáneo
-    const validChunks = chunksArr.filter(Boolean);
-    if (validChunks.length > 0) {
-      this.mergedBuffer = await this.ttsService.mergeBuffersInBackground(validChunks);
-      this.allChunksDownloaded.set(true);
-    }
-
-    if (!isPlaybackStarted && validChunks.length > 0) {
-      this.isBufferReady.set(true);
-      this.isLoading.set(false);
-      this.playNext();
     }
   }
 
@@ -432,6 +289,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   stop(): void {
+    this.playerService.stop();
     this.isStopping = true;
     this.isDowloadingInBackground.set(false);  // detiene el loop de descarga
     this.isPaused.set(false);
@@ -468,7 +326,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
     this.isLoading.set(true);
     try {
-      this.ttsService.downloadWav(this.mergedBuffer, 'pinspeech-output');
+      downloadWav(this.mergedBuffer, 'pinspeech-output');
       this.successMessage.set(`Audio exported successfully`);
     } catch (e: any) {
       this.errorMessage.set('Export error: ' + e.message);

@@ -180,7 +180,7 @@
         <span class="queue-count">
           <!-- Solo mostramos el contador si no terminó -->
           <ng-container *ngIf="!successMessage()">
-            {{ currentIndex() + 1 }} / {{ audioQueue().length }}
+            {{ currentIndex() + 1 }} / {{ chunksTotal }}
           </ng-container>
           <ng-container *ngIf="successMessage()">
             {{ audioQueue().length }} / {{ audioQueue().length }}
@@ -191,12 +191,13 @@
           </span>
         </span>
         <div class="queue-dots">
+          @for (_ of ' '.repeat(chunksTotal); track $index) {
           <span
-            *ngFor="let url of audioQueue(); let i = index"
             class="dot"
-            [class.played]="i < currentIndex()"
-            [class.current]="i === currentIndex()">
+            [class.played]="$index < currentIndex()"
+            [class.current]="$index === currentIndex()">
           </span>
+          }
         </div>
       </div>
 

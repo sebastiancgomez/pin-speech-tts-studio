@@ -1,0 +1,170 @@
+import { ChunkAudio } from '../../shared/models/tts.models';
+
+  export function audioBufferToWav(buffer: AudioBuffer): Blob {
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length * numberOfChannels * 2; // 2 bytes por sample (16-bit)
+    const arrayBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(arrayBuffer);
+
+    // Cabecera WAV (RIFF)
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + length, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);           // PCM
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+    view.setUint16(32, numberOfChannels * 2, true);
+    view.setUint16(34, 16, true);          // 16-bit
+    writeString(36, 'data');
+    view.setUint32(40, length, true);
+
+    // Datos de audio (interleaved)
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  }
+
+  export function downloadBlob(blob: Blob, nombre: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  export function base64ToBlob(base64: string, mimeType: string = 'audio/mpeg'): Blob {
+    const byteCharacters = atob(base64);
+    const byteArray = new Uint8Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+    }
+    return new Blob([byteArray], { type: mimeType });
+  }
+  
+  export async function mergeBuffersInBackground(chunks: ChunkAudio[]): Promise<AudioBuffer> {
+    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
+    const audioContext = new AudioContext();
+    const buffers: AudioBuffer[] = [];
+
+    for (const chunk of validChunks) {
+      let arrayBuffer: ArrayBuffer;
+      if (chunk.base64) {
+        const byteCharacters = atob(chunk.base64);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        arrayBuffer = byteArray.buffer;
+      } else if (chunk.blob) {
+        arrayBuffer = await chunk.blob.arrayBuffer();
+      } else continue;
+
+      try {
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        buffers.push(audioBuffer);
+      } catch (e) {
+        console.warn('Error decodificando chunk:', e);
+      }
+    }
+
+    if (buffers.length === 0) throw new Error('No audio to merge after decoding');
+
+    const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
+    const sampleRate = buffers[0].sampleRate;
+    const channels = buffers[0].numberOfChannels;
+    const mergedBuffer = audioContext.createBuffer(
+      channels,
+      Math.ceil(fullLength * sampleRate),
+      sampleRate
+    );
+
+    let actualOffset = 0;
+    for (const buffer of buffers) {
+      for (let channel = 0; channel < channels; channel++) {
+        mergedBuffer.getChannelData(channel).set(
+          buffer.getChannelData(channel), actualOffset
+        );
+      }
+      actualOffset += buffer.length;
+    }
+
+    return mergedBuffer;
+  }
+
+  export async function mergeAndDownloadAudio(chunks: ChunkAudio[], fileName: string): Promise<void> {
+    const validChunks = chunks.filter(c => c && (c.base64 || c.blob));
+  
+    if (validChunks.length === 0) throw new Error('No valid chunks to export');
+    const audioContext = new AudioContext();
+    const buffers: AudioBuffer[] = [];
+
+    for (const chunk of validChunks) {
+      let arrayBuffer: ArrayBuffer;
+
+      if (chunk.base64) {
+        // TikTok: tenemos base64
+        const byteCharacters = atob(chunk.base64);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        arrayBuffer = byteArray.buffer;
+      } else if (chunk.blob) {
+        // Google: tenemos Blob directamente
+        arrayBuffer = await chunk.blob.arrayBuffer();
+      } else {
+        continue;
+      }
+
+      try {
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        buffers.push(audioBuffer);
+      } catch (e) {
+        console.warn('Error decodificando chunk, saltando:', e);
+      }
+    }
+
+    if (buffers.length === 0) throw new Error('No audio to export after decoding');
+
+    const fullLength = buffers.reduce((acc, buf) => acc + buf.duration, 0);
+    const sampleRate = buffers[0].sampleRate;
+    const channels = buffers[0].numberOfChannels;
+    const mergedBuffer = audioContext.createBuffer(
+      channels,
+      Math.ceil(fullLength * sampleRate),
+      sampleRate
+    );
+
+    let actualOffset = 0;
+    for (const buffer of buffers) {
+      for (let channel = 0; channel < channels; channel++) {
+        mergedBuffer.getChannelData(channel).set(
+          buffer.getChannelData(channel), actualOffset
+        );
+      }
+      actualOffset += buffer.length;
+    }
+
+    const wavBlob = audioBufferToWav(mergedBuffer);
+    downloadBlob(wavBlob, fileName + '.wav');
+  }
+
+  export function downloadWav(buffer: AudioBuffer, fileName: string): void {
+    const wavBlob = audioBufferToWav(buffer);
+    downloadBlob(wavBlob, fileName + '.wav');
+  }
