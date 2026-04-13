@@ -567,6 +567,29 @@ $color-error: #f76a6a;
   }
 }
 
+// ─── Fila de exportación ────────────────────────────────────────────────────────
+.export-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  .format-select {
+    padding: 0.7rem 0.8rem;
+    border-radius: 10px;
+    background: $color-surface;
+    border: 1px solid $color-border-strong;
+    color: $color-text;
+    font-family: $font-mono;
+    font-size: 0.82rem;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $color-accent;
+    }
+  }
+}
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.4); }

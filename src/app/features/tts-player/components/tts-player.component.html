@@ -164,14 +164,22 @@
           [disabled]="!isPlaying() && !isPaused() && !isLoading()">
           ⏹ Stop
         </button>
-
-        <!-- Export: habilitado si hay chunks aunque esté reproduciendo -->
-        <button
-          class="btn btn-export"
-          (click)="exportAudio()"
-          [disabled]="!allChunksDownloaded() || isLoading()">
-           {{ exportButtonLabel }}
-        </button>
+        <div class="export-row">
+          <select 
+            class="format-select"
+            [value]="exportFormat()"
+            (change)="exportFormat.set($any($event.target).value)">
+            <option value="mp3">MP3</option>
+            <option value="wav">WAV</option>
+          </select>
+          <!-- Export: habilitado si hay chunks aunque esté reproduciendo -->
+          <button
+            class="btn btn-export"
+            (click)="exportAudio()"
+            [disabled]="!allChunksDownloaded() || isLoading()">
+            {{ exportButtonLabel }}
+          </button>
+        </div>
       </div>
 
       <!-- Barra de progress -->

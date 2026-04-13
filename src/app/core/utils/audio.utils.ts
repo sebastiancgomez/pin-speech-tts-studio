@@ -1,5 +1,57 @@
 import { ChunkAudio } from '../../shared/models/tts.models';
 
+// lamejs se carga como variable global desde index.html
+declare const lamejs: any;
+
+export function audioBufferToMp3(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const bitRate = 128;
+
+  const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitRate);
+  const mp3Chunks: ArrayBuffer[] = [];
+
+  const toInt16 = (float32Array: Float32Array): Int16Array => {
+    const int16 = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return int16;
+  };
+
+  const BLOCK_SIZE = 1152;
+  const leftChannel = toInt16(buffer.getChannelData(0));
+  const rightChannel = numChannels > 1
+    ? toInt16(buffer.getChannelData(1))
+    : leftChannel;
+
+  for (let i = 0; i < leftChannel.length; i += BLOCK_SIZE) {
+    const leftBlock = leftChannel.subarray(i, i + BLOCK_SIZE);
+    const rightBlock = rightChannel.subarray(i, i + BLOCK_SIZE);
+    const encoded = mp3Encoder.encodeBuffer(leftBlock, rightBlock);
+    if (encoded.length > 0) {
+      const copy = new ArrayBuffer(encoded.length);
+      new Int8Array(copy).set(encoded);
+      mp3Chunks.push(copy);
+    }
+  }
+
+  const flushed = mp3Encoder.flush();
+  if (flushed.length > 0) {
+    const copy = new ArrayBuffer(flushed.length);
+    new Int8Array(copy).set(flushed);
+    mp3Chunks.push(copy);
+  }
+
+  return new Blob(mp3Chunks, { type: 'audio/mp3' });
+}
+
+export function downloadMp3(buffer: AudioBuffer, fileName: string): void {
+  const mp3Blob = audioBufferToMp3(buffer);
+  downloadBlob(mp3Blob, fileName + '.mp3');
+}
+
   export function audioBufferToWav(buffer: AudioBuffer): Blob {
     const numberOfChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;

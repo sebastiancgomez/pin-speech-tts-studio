@@ -6,9 +6,10 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { TtsService } from '../../../core/services/tts.services';
 import { VoiceTTS, ServiceTTS, ChunkAudio  } from '../../../shared/models/tts.models';
-import { mergeBuffersInBackground, downloadWav } from '../../../core/utils/audio.utils';
+import { downloadWav, downloadMp3 } from '../../../core/utils/audio.utils';
 import { PlayerService } from '../services/player.service';
 import { extractTextFromFile } from '../../../core/utils/file.utils';
+
 
 @Component({
   selector: 'app-tts-player',
@@ -50,6 +51,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   allChunksDownloaded = signal(false);
   mergedBuffer: AudioBuffer | null = null;
   isExtractingFile = signal(false);
+  exportFormat = signal<'wav' | 'mp3'>('mp3'); // mp3 por defecto
 
   get activeVoices(): VoiceTTS[] {
     return this.activeService === 'tiktok' ? this.tiktokVoices() : this.googleVoices();
@@ -322,14 +324,19 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
 
   async exportAudio(): Promise<void> {
     if (!this.mergedBuffer) {
-      this.errorMessage.set('The audio is still being processed, please wait a moment');
+      this.errorMessage.set('Generate audio first before exporting');
       return;
     }
 
     this.isLoading.set(true);
     try {
-      downloadWav(this.mergedBuffer, 'pinspeech-output');
-      this.successMessage.set(`Audio exported successfully`);
+      if (this.exportFormat() === 'mp3') {
+        downloadMp3(this.mergedBuffer, 'pinspeech-output');
+        this.successMessage.set('Audio exported as MP3');
+      } else {
+        downloadWav(this.mergedBuffer, 'pinspeech-output');
+        this.successMessage.set('Audio exported as WAV');
+      }
     } catch (e: any) {
       this.errorMessage.set('Export error: ' + e.message);
     } finally {
