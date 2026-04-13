@@ -17,7 +17,8 @@ Free text-to-speech studio that converts text to audio using TikTok TTS and Goog
 - ⚡ **Buffered playback** — starts playing after 50% of chunks are ready, downloads the rest in the background (parallel with Promise.allSettled)
 - ⏸️ **Playback controls** — play, pause, resume, stop
 - 🎚️ **Volume and speed control** — 0–100% volume, 0.5x to 1.5x playback speed
-- 💾 **Audio export** — combines all chunks into a single WAV file using Web Audio API
+- 📄 **File upload** — extract text directly from PDF, DOC and DOCX files
+- 💾 **Audio export** — combines all chunks into a single MP3 or WAV file using Web Audio API + lamejs
 - 🎨 **Dark UI** — custom design with DM Serif Display, DM Sans and JetBrains Mono fonts
 
 ---
@@ -49,7 +50,9 @@ The proxy layer solves CORS restrictions — both TTS endpoints block direct bro
 | Backend/Proxy | Azure Functions v4 (Node.js) |
 | Hosting | Azure Static Web Apps (Free tier) |
 | CI/CD | GitHub Actions (auto-deploy on push to main) |
-| Audio processing | Web Audio API |
+| Audio processing | Web Audio API + lamejs |
+| PDF extraction | pdf.js (Mozilla) |
+| Word extraction | mammoth.js |
 | TTS Engine 1 | TikTok TTS (via weilnet proxy) |
 | TTS Engine 2 | Google Translate TTS |
 
@@ -78,23 +81,29 @@ pin-speech-tts-studio/
 ├── src/
 │   ├── app/
 │   │   ├── core/
-│   │   │   └── services/
-│   │   │       └── tts.service.ts    # API calls, chunking, audio export
+│   │   │   ├── services/
+│   │   │   │   └── tts.service.ts        # HTTP calls, chunking
+│   │   │   └── utils/
+│   │   │       ├── audio.utils.ts        # audioBufferToWav, MP3 export, merge
+│   │   │       └── file.utils.ts         # PDF and Word text extraction
 │   │   ├── features/
 │   │   │   └── tts-player/
-│   │   │       ├── tts-player.component.ts    # component logic
-│   │   │       ├── tts-player.component.html  # template
-│   │   │       └── tts-player.component.scss  # styles
+│   │   │       ├── components/
+│   │   │       │   ├── tts-player.component.ts    # component logic
+│   │   │       │   ├── tts-player.component.html  # template
+│   │   │       │   └── tts-player.component.scss  # styles
+│   │   │       └── services/
+│   │   │           └── player.service.ts  # batch download, retry, playback queue
 │   │   ├── shared/
 │   │   │   └── models/
-│   │   │       └── tts.models.ts     # interfaces and types
+│   │   │       └── tts.models.ts         # interfaces and types
 │   │   ├── app.component.ts
 │   │   └── app.config.ts
-│   ├── staticwebapp.config.json      # Azure SWA routing config
+│   ├── staticwebapp.config.json          # Azure SWA routing config
 │   └── index.html
 ├── .github/
 │   └── workflows/
-│       └── azure-static-web-apps-*.yml  # CI/CD pipeline
+│       └── azure-static-web-apps-*.yml   # CI/CD pipeline
 ├── .gitignore
 └── README.md
 ```
@@ -121,9 +130,15 @@ On startup, the API validates every voice by making a test request. Only voices 
 ### Audio Export
 Uses the Web Audio API to:
 1. Decode each MP3 chunk into an `AudioBuffer`
-2. Calculate total duration and allocate a combined buffer
-3. Copy each chunk into the correct position
-4. Encode as WAV (PCM) and trigger browser download
+2. Pre-merge all buffers in the background while audio is still playing
+3. On export, encode as MP3 (via lamejs) or WAV (PCM) and trigger browser download
+4. Export is instantaneous because the merge happens in the background
+
+### File Upload
+Text can be extracted directly from files without leaving the app:
+- **PDF** — extracted using pdf.js (Mozilla), runs entirely in the browser
+- **DOC / DOCX** — extracted using mammoth.js, runs entirely in the browser
+- No backend required for file processing — zero additional cost
 
 ### CORS Solution
 Both TTS endpoints block browser requests (CORS). Azure Functions act as a server-to-server proxy — server-to-server requests have no CORS restrictions, equivalent to `IHttpClientFactory` in .NET calling an external API.
@@ -134,6 +149,9 @@ To avoid rate limiting on TikTok TTS (which rejects too many simultaneous reques
 - If a chunk fails, it retries with exponential backoff (500ms × attempt for Google, 1000ms × attempt for TikTok)
 - Equivalent to `Polly` retry policies in .NET
 - If all retries fail, the chunk is skipped and playback continues with the rest
+
+### Player Service
+Download logic, batch processing and retry are encapsulated in a dedicated `PlayerService` scoped to the component — equivalent to `AddScoped<>()` in .NET. The service communicates with the component via RxJS `Subject` streams, equivalent to C# events.
 
 ---
 
@@ -207,12 +225,22 @@ To deploy your own instance:
 - **TikTok TTS** uses an unofficial endpoint — availability may change without notice
 - **Google TTS** uses the free translate endpoint — not intended for production use at scale
 - Voice cache resets when Azure restarts the Function instance
-- Audio export produces WAV format (browsers cannot natively encode MP3)
 - **Chunk gap** — small pause between chunks during playback, inherent to the HTML audio element model
 
 ---
 
 ## 🔄 Changelog
+
+### v1.3.0
+- 📄 **File upload** — extract text directly from PDF, DOC and DOCX files using pdf.js and mammoth.js (browser-only, no backend required)
+- 🎵 **MP3 export** — audio can now be exported as MP3 (via lamejs) in addition to WAV
+- 🔧 **Refactor** — extracted audio utilities to `core/utils/audio.utils.ts`, file utilities to `core/utils/file.utils.ts`, and download/retry logic to a dedicated `PlayerService` scoped to the feature
+- 📁 **Project structure** — reorganized feature folder into `components/` and `services/` subfolders
+
+### v1.2.0
+- ⚡ **Batch processing** — TikTok TTS requests are processed in batches of 3 to avoid rate limiting. Google TTS in batches of 5
+- 🔄 **Automatic retry** — failed chunks are retried automatically (TikTok: 3 attempts, Google: 2 attempts) with exponential backoff before being discarded
+- 🔇 **Silent chunk failure** — if a chunk fails after all retries, playback continues with the remaining chunks instead of stopping entirely
 
 ### v1.1.0
 - ⚡ **Instant export** — audio buffer is pre-merged in the background while playing, export is now instantaneous
@@ -221,10 +249,6 @@ To deploy your own instance:
 - 📦 **Azure Functions** — migrated from local Express proxy to Azure Functions for serverless deployment
 - 🚀 **CI/CD** — automated deployment via GitHub Actions on every push to main
 - ✅ **Voice validation** — invalid/unavailable voices are filtered on startup and cached in memory
-### v1.2.0
-- ⚡ **Batch processing** — TikTok TTS requests are processed in batches of 3 to avoid rate limiting. Google TTS in batches of 5
-- 🔄 **Automatic retry** — failed chunks are retried automatically (TikTok: 3 attempts, Google: 2 attempts) with exponential backoff before being discarded
-- 🔇 **Silent chunk failure** — if a chunk fails after all retries, playback continues with the remaining chunks instead of stopping entirely
 
 ---
 
