@@ -3,15 +3,39 @@ const fetch = require('node-fetch');
 let cachedVoices = null;
 
 const ALL_VOICES = [
-    { id: 'es', name: 'Español', language: 'es' },
-    { id: 'es-MX', name: 'Español México', language: 'es-MX' },
-    { id: 'en', name: 'English', language: 'en' },
-    { id: 'fr', name: 'Français', language: 'fr' },
-    { id: 'de', name: 'Deutsch', language: 'de' },
-    { id: 'pt', name: 'Português', language: 'pt' },
-    { id: 'it', name: 'Italiano', language: 'it' },
-    { id: 'ja', name: '日本語', language: 'ja' },
-    { id: 'ko', name: '한국어', language: 'ko' },
+    // --- Básicos (Tus originales + mejoras) ---
+    { id: 'es', name: 'Español (España)', language: 'es-ES' },
+    { id: 'es-MX', name: 'Español (México)', language: 'es-MX' },
+    { id: 'es-US', name: 'Español (Estados Unidos)', language: 'es-US' },
+    { id: 'en-US', name: 'English (US)', language: 'en-US' },
+    { id: 'en-GB', name: 'English (UK)', language: 'en-GB' },
+    { id: 'fr', name: 'Français', language: 'fr-FR' },
+    { id: 'de', name: 'Deutsch', language: 'de-DE' },
+    { id: 'pt-BR', name: 'Português (Brasil)', language: 'pt-BR' },
+    { id: 'it', name: 'Italiano', language: 'it-IT' },
+    
+    // --- Asia y Oceanía ---
+    { id: 'ja', name: '日本語 (Japonés)', language: 'ja-JP' },
+    { id: 'ko', name: '한국어 (Coreano)', language: 'ko-KR' },
+    { id: 'zh-CN', name: '中文 (Chino Simplificado)', language: 'zh-CN' },
+    { id: 'hi-IN', name: 'हिन्दी (Hindi)', language: 'hi-IN' },
+    { id: 'vi-VN', name: 'Tiếng Việt (Vietnamita)', language: 'vi-VN' },
+    { id: 'th-TH', name: 'ไทย (Tailandés)', language: 'th-TH' },
+
+    // --- Europa del Este y Norte ---
+    { id: 'ru-RU', name: 'Русский (Ruso)', language: 'ru-RU' },
+    { id: 'pl-PL', name: 'Polski (Polaco)', language: 'pl-PL' },
+    { id: 'nl-NL', name: 'Nederlands (Holandés)', language: 'nl-NL' },
+    { id: 'sv-SE', name: 'Svenska (Sueco)', language: 'sv-SE' },
+    { id: 'da-DK', name: 'Dansk (Danés)', language: 'da-DK' },
+    { id: 'no-NO', name: 'Norsk (Noruego)', language: 'no-NO' },
+    { id: 'fi-FI', name: 'Suomi (Finlandés)', language: 'fi-FI' },
+
+    // --- Medio Oriente y Otros ---
+    { id: 'ar-XA', name: 'العربية (Árabe)', language: 'ar-XA' },
+    { id: 'tr-TR', name: 'Türkçe (Turco)', language: 'tr-TR' },
+    { id: 'he-IL', name: 'עברית (Hebreo)', language: 'he-IL' },
+    { id: 'id-ID', name: 'Bahasa Indonesia (Indonesio)', language: 'id-ID' }
 ];
 
 module.exports = async function (context, req) {

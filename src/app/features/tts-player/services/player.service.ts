@@ -56,11 +56,11 @@ export class PlayerService {
     const MAX_RETRIES = 3;
     const RETRY_DELAY_MS = 1000;
 
-    const downloadWithRetry = async (texto: string, index: number): Promise<void> => {
+    const downloadWithRetry = async (text: string, index: number): Promise<void> => {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
           const chunk = await firstValueFrom(
-            this.ttsService.generateTiktokAudio(texto, selectedVoice.id)
+            this.ttsService.generateTiktokAudio(text, selectedVoice.id)
           );
 
           if (!this.isActive) return;
@@ -89,6 +89,7 @@ export class PlayerService {
 
       this.ngZone.run(() => {
         this.onError$.next({ chunkIndex: index, message: `Chunk ${index + 1} failed after ${MAX_RETRIES} attempts` });
+        console.error(`Chunk ${index + 1} failed after ${MAX_RETRIES} attempts - text: `, text);
       });
     };
 
@@ -138,11 +139,11 @@ export class PlayerService {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 500;
 
-    const downloadWithRetry = async (texto: string, index: number): Promise<void> => {
+    const downloadWithRetry = async (text: string, index: number): Promise<void> => {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
           const chunk = await firstValueFrom(
-            this.ttsService.generateGoogleAudio(texto, selectedVoice.language || 'es')
+            this.ttsService.generateGoogleAudio(text, selectedVoice.language || 'es')
           );
 
           if (!this.isActive) return;

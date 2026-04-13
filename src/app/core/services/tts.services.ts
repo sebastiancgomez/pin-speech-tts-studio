@@ -102,10 +102,19 @@ export class TtsService {
   // Ahora retorna ChunkAudio con base64 Y blobUrl separados
 // así podemos reproducir Y exportar sin depender del blobUrl (que se revoca)
   generateTiktokAudio(text: string, voiceId: string): Observable<ChunkAudio> {
+    const body = JSON.stringify({ 
+      text: text, 
+      voice: voiceId 
+    });
+    console.log('Requesting TikTok TTS with body:', body);
     return this.http.post<{success: boolean, data: string, error: string | null}>(
       this.TIKTOK_URL,
-      { text: text, voice: voiceId },
-      { headers: new HttpHeaders({ 'Content-Type': 'application/json' }) }
+      body, 
+      { 
+        headers: new HttpHeaders({ 
+          'Content-Type': 'application/json; charset=utf-8' // Especificamos explícitamente el charset
+        }) 
+      }
     ).pipe(
       map((response): ChunkAudio => {
         if (!response?.data) throw new Error('No audio data received from TikTok TTS API');
@@ -118,7 +127,11 @@ export class TtsService {
 
         return { base64, blobUrl };
       }),
-      catchError(error => throwError(() => new Error(`HTTP ${error.status}: ${error.message}`)))
+      catchError(error => {
+        // Mejora del log para debug
+        console.error('Error en TTS:', error);
+        return throwError(() => new Error(`HTTP ${error.status}: ${error.message}`));
+      })
     );
   }
 
@@ -127,9 +140,15 @@ export class TtsService {
   // No podemos hacer fetch() por CORS, pero el elemento <audio> sí puede cargar cross-origin
 
   buildGoogleUrl(text: string, language: string): string {
-  const encodedText = encodeURIComponent(text);
+    // 1. Codificamos el texto para la URL
+    const encodedText = encodeURIComponent(text);
+    
+    // 2. Para 'textlen', Google suele esperar la longitud del texto original, 
+    // no la del texto ya codificado con '%'.
+    const textLength = text.length;
+
     return `${this.GOOGLE_BASE}?ie=UTF-8&total=1&idx=0&client=tw-ob&prev=input` +
-           `&textlen=${encodedText.length}&q=${encodedText}&tl=${language}&ttsspeed=1`;
+          `&textlen=${textLength}&q=${encodedText}&tl=${language}&ttsspeed=1`;
   }
 
   private readonly GOOGLE_URL = '/api/tts/google';
