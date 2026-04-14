@@ -323,7 +323,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       if (this.exportFormat() === 'mp3') {
         // MP3: concatenación directa de binarios — sin AudioContext, sin bloquear el hilo
         downloadMp3Chunks(this.chunks().filter(Boolean), 'pinspeech-output');
-        this.successMessage.set('✓ Audio exported as MP3');
+        this.successMessage.set('Audio exported as MP3');
       } else {
         // WAV: requiere decodificar y mezclar AudioBuffers
         if (!this.mergedBuffer) {
@@ -331,7 +331,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
           return;
         }
         downloadWav(this.mergedBuffer, 'pinspeech-output');
-        this.successMessage.set('✓ Audio exported as WAV');
+        this.successMessage.set('Audio exported as WAV');
       }
     } catch (e: any) {
       this.errorMessage.set('Export error: ' + e.message);
