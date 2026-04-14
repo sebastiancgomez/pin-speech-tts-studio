@@ -71,7 +71,15 @@ export class TtsService {
   // El límite de TikTok es ~300 chars, Google ~180
 
   divideIntoChunks(text: string, limit: number): string[] {
-    const words = text.split(' ');
+    const normalizedText = text
+      .replace(/\r\n|\r|\n/g, ' ')
+      .replace(/—|–/g, '-')           // em dash y en dash → guión simple
+      .replace(/[""]/g, '"')          // comillas tipográficas → estándar
+      .replace(/['']/g, "'")          // apóstrofes tipográficos → estándar
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const words = normalizedText.split(' ');
     const chunks: string[] = [];
     let actualChunk = '';
 
@@ -106,7 +114,6 @@ export class TtsService {
       text: text, 
       voice: voiceId 
     });
-    console.log('Requesting TikTok TTS with body:', body);
     return this.http.post<{success: boolean, data: string, error: string | null}>(
       this.TIKTOK_URL,
       body, 

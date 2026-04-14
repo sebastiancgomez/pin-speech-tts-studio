@@ -6,12 +6,12 @@ const ALL_VOICES = [
     // --- Básicos (Tus originales + mejoras) ---
     { id: 'es', name: 'Español (España)', language: 'es-ES' },
     { id: 'es-MX', name: 'Español (México)', language: 'es-MX' },
-    { id: 'es-US', name: 'Español (Estados Unidos)', language: 'es-US' },
     { id: 'en-US', name: 'English (US)', language: 'en-US' },
     { id: 'en-GB', name: 'English (UK)', language: 'en-GB' },
     { id: 'fr', name: 'Français', language: 'fr-FR' },
     { id: 'de', name: 'Deutsch', language: 'de-DE' },
     { id: 'pt-BR', name: 'Português (Brasil)', language: 'pt-BR' },
+    { id: 'pt-PT', name: 'Português (Portugal)', language: 'pt-PT' },
     { id: 'it', name: 'Italiano', language: 'it-IT' },
     
     // --- Asia y Oceanía ---

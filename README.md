@@ -10,7 +10,7 @@ Free text-to-speech studio that converts text to audio using TikTok TTS and Goog
 
 ## ✨ Features
 
-- 🎤 **Two TTS engines** — TikTok TTS (character voices, multiple languages) and Google TTS (natural voices, 9+ languages)
+- 🎤 **Two TTS engines** — TikTok TTS (character voices, multiple languages) and Google TTS (natural voices, 26 languages)
 - 🔍 **Voice validation** — only voices that are currently available are shown, invalid ones are filtered automatically
 - 👂 **Voice preview** — listen to each voice before selecting it
 - ♾️ **Unlimited text length** — text is automatically split into chunks (300 chars for TikTok, 180 for Google)
@@ -18,7 +18,7 @@ Free text-to-speech studio that converts text to audio using TikTok TTS and Goog
 - ⏸️ **Playback controls** — play, pause, resume, stop
 - 🎚️ **Volume and speed control** — 0–100% volume, 0.5x to 1.5x playback speed
 - 📄 **File upload** — extract text directly from PDF, DOC and DOCX files
-- 💾 **Audio export** — combines all chunks into a single MP3 or WAV file using Web Audio API + lamejs
+- 💾 **Audio export** — MP3 (binary concatenation, non-blocking) or WAV (Web Audio API)
 - 🎨 **Dark UI** — custom design with DM Serif Display, DM Sans and JetBrains Mono fonts
 
 ---
@@ -50,7 +50,7 @@ The proxy layer solves CORS restrictions — both TTS endpoints block direct bro
 | Backend/Proxy | Azure Functions v4 (Node.js) |
 | Hosting | Azure Static Web Apps (Free tier) |
 | CI/CD | GitHub Actions (auto-deploy on push to main) |
-| Audio processing | Web Audio API + lamejs |
+| Audio processing | Web Audio API |
 | PDF extraction | pdf.js (Mozilla) |
 | Word extraction | mammoth.js |
 | TTS Engine 1 | TikTok TTS (via weilnet proxy) |
@@ -117,6 +117,8 @@ Both TTS APIs have character limits per request. The app automatically splits te
 - **TikTok TTS**: 300 characters per chunk
 - **Google TTS**: 180 characters per chunk
 
+Text is normalized before chunking — line breaks (`\n`) are replaced with spaces and special characters like em dashes are sanitized to prevent API errors.
+
 ### Buffered Playback
 Instead of waiting for all chunks to download before playing, the app:
 1. Launches all chunk downloads in parallel (`Promise.allSettled` — equivalent to `Task.WhenAll()` in C#)
@@ -128,11 +130,9 @@ Instead of waiting for all chunks to download before playing, the app:
 On startup, the API validates every voice by making a test request. Only voices that return a successful response are shown in the UI. Results are cached in memory for the lifetime of the Azure Function instance.
 
 ### Audio Export
-Uses the Web Audio API to:
-1. Decode each MP3 chunk into an `AudioBuffer`
-2. Pre-merge all buffers in the background while audio is still playing
-3. On export, encode as MP3 (via lamejs) or WAV (PCM) and trigger browser download
-4. Export is instantaneous because the merge happens in the background
+Two export strategies depending on format:
+- **MP3** — chunks are concatenated as raw binary data without decoding. MP3 is a sequence of independent frames, so concatenation produces a valid file. This is non-blocking and does not affect playback.
+- **WAV** — chunks are decoded into `AudioBuffer` objects, merged into a single buffer, and encoded as PCM. The merge is deferred 2 seconds after all chunks are downloaded to avoid competing with the audio playback thread.
 
 ### File Upload
 Text can be extracted directly from files without leaving the app:
@@ -231,9 +231,16 @@ To deploy your own instance:
 
 ## 🔄 Changelog
 
+### v1.4.0
+- 🌍 **Google TTS expanded** — now supports 26 languages including Arabic, Hindi, Vietnamese, Thai, Russian, Polish, Dutch, Swedish, Danish, Norwegian, Finnish, Turkish, Hebrew and Indonesian
+- 🎵 **MP3 export reworked** — now uses binary concatenation instead of AudioContext decoding, making it non-blocking and safe for large files (50+ chunks)
+- ⏳ **Deferred WAV merge** — AudioBuffer merge is now deferred 2 seconds after download completes to avoid competing with playback and blocking the main thread
+- 🔧 **Fix emojis and special characters** — TikTok TTS requests now use explicit UTF-8 charset header to handle emojis and special characters without crashing
+- 🔧 **Fix line breaks in chunks** — `\n` and `\r\n` are normalized to spaces before chunking to prevent API errors on multiline text
+
 ### v1.3.0
 - 📄 **File upload** — extract text directly from PDF, DOC and DOCX files using pdf.js and mammoth.js (browser-only, no backend required)
-- 🎵 **MP3 export** — audio can now be exported as MP3 (via lamejs) in addition to WAV
+- 🎵 **MP3 export** — audio can now be exported as MP3 in addition to WAV
 - 🔧 **Refactor** — extracted audio utilities to `core/utils/audio.utils.ts`, file utilities to `core/utils/file.utils.ts`, and download/retry logic to a dedicated `PlayerService` scoped to the feature
 - 📁 **Project structure** — reorganized feature folder into `components/` and `services/` subfolders
 

@@ -1,15 +1,12 @@
-import {
-  Component, OnInit, OnDestroy, ViewChild, ElementRef, signal, NgZone
-} from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, signal, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { TtsService } from '../../../core/services/tts.services';
-import { VoiceTTS, ServiceTTS, ChunkAudio  } from '../../../shared/models/tts.models';
-import { downloadWav, downloadMp3 } from '../../../core/utils/audio.utils';
+import { VoiceTTS, ServiceTTS, ChunkAudio } from '../../../shared/models/tts.models';
+import { downloadWav, downloadMp3Chunks } from '../../../core/utils/audio.utils';
 import { PlayerService } from '../services/player.service';
 import { extractTextFromFile } from '../../../core/utils/file.utils';
-
 
 @Component({
   selector: 'app-tts-player',
@@ -17,10 +14,9 @@ import { extractTextFromFile } from '../../../core/utils/file.utils';
   imports: [CommonModule, FormsModule],
   templateUrl: './tts-player.component.html',
   styleUrls: ['./tts-player.component.scss'],
-  providers: [PlayerService]  // ← scoped al componente
+  providers: [PlayerService], // ← scoped al componente
 })
 export class TtsPlayerComponent implements OnInit, OnDestroy {
-
   @ViewChild('audioPlayer') audioPlayerRef!: ElementRef<HTMLAudioElement>;
   @ViewChild('audioPreview') audioPreviewRef!: ElementRef<HTMLAudioElement>;
 
@@ -31,7 +27,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   inputText = '';
   volume = 80;
   // Signals = equivalente a INotifyPropertyChanged automático en .NET MVVM
-// Cuando cambia un signal, Angular re-renderiza SOLO lo que lo usa
+  // Cuando cambia un signal, Angular re-renderiza SOLO lo que lo usa
   isLoading = signal(false);
   progress = signal(0);
   isPlaying = signal(false);
@@ -41,11 +37,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   currentIndex = signal(0);
   tiktokVoices = signal<VoiceTTS[]>([]);
   googleVoices = signal<VoiceTTS[]>([]);
-  chunks = signal<ChunkAudio[]>([]);          // todos los chunks con base64 + blobUrl
-  playSpeed = signal(1.0);             // velocidad de reproducción
-  isBufferReady = signal(false);         // true cuando tenemos suficiente buffer
-  isDowloadingInBackground = signal(false);          // flag para el loop de descarga
-  loadingVoices = signal(true);  // nueva propiedad
+  chunks = signal<ChunkAudio[]>([]); // todos los chunks con base64 + blobUrl
+  playSpeed = signal(1.0); // velocidad de reproducción
+  isBufferReady = signal(false); // true cuando tenemos suficiente buffer
+  isDowloadingInBackground = signal(false); // flag para el loop de descarga
+  loadingVoices = signal(true); // nueva propiedad
   isPaused = signal(false);
   previewingVoiceId = signal<string | null>(null);
   allChunksDownloaded = signal(false);
@@ -72,7 +68,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   constructor(
     private ttsService: TtsService,
     private playerService: PlayerService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
   ) {}
 
   ngOnInit(): void {
@@ -87,7 +83,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.subscribeToPlayerEvents();
     // Cargamos ambos servicios en paralelo — como Task.WhenAll() en C#
     this.ttsService.getTiktokVoices().subscribe({
-      next: voices => {
+      next: (voices) => {
         this.tiktokVoices.set(voices);
         if (this.activeService === 'tiktok') {
           this.selectedVoice = voices[0] ?? null;
@@ -96,17 +92,17 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         tiktokReady = true;
         checkBothReady();
       },
-      error: err => {
+      error: (err) => {
         this.ngZone.run(() => {
           this.errorMessage.set('Error loading TikTok voices: ' + err.message);
           tiktokReady = true; // aunque falle, marcamos como listo para no bloquear
           checkBothReady();
         });
-      }
+      },
     });
 
     this.ttsService.getGoogleVoices().subscribe({
-      next: voices => {
+      next: (voices) => {
         this.googleVoices.set(voices);
         if (this.activeService === 'google') {
           this.selectedVoice = voices[0] ?? null;
@@ -115,11 +111,11 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
         googleReady = true;
         checkBothReady();
       },
-      error: err => {
+      error: (err) => {
         this.errorMessage.set('Error loading Google voices: ' + err.message);
-        googleReady = true; 
+        googleReady = true;
         checkBothReady();
-      }
+      },
     });
   }
 
@@ -130,12 +126,12 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   private subscribeToPlayerEvents(): void {
     // Equivalente a: playerService.ChunkReady += OnChunkReady en C#
     this.playerService.onChunkReady$.subscribe(({ index, chunk, downloaded, total }) => {
-      this.chunks.update(arr => {
+      this.chunks.update((arr) => {
         const updated = [...arr];
         updated[index] = chunk;
         return updated;
       });
-      this.audioQueue.update(arr => {
+      this.audioQueue.update((arr) => {
         const updated = [...arr];
         updated[index] = chunk.blobUrl;
         return updated;
@@ -180,7 +176,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     if (voice.service === 'tiktok') {
       try {
         const chunk: ChunkAudio = await firstValueFrom(
-          this.ttsService.generateTiktokAudio(preview, voice.id)
+          this.ttsService.generateTiktokAudio(preview, voice.id),
         );
         audioEl.src = chunk.blobUrl;
         audioEl.volume = this.volume / 100;
@@ -189,7 +185,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       } catch (e) {
         console.warn('Preview falló:', e);
       }
-    }else {
+    } else {
       const urls = this.ttsService.getGoogleUrls(preview, voice.language || 'es');
       audioEl.src = urls[0];
       audioEl.volume = this.volume / 100;
@@ -197,7 +193,6 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
-  
   async generateAndPlay(): Promise<void> {
     if (!this.inputText.trim() || !this.selectedVoice) return;
 
@@ -215,18 +210,13 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.isPaused.set(false);
     this.mergedBuffer = null;
 
-
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
     try {
       if (this.activeService === 'tiktok') {
-        this.playerService.generateTiktokWithBuffer(
-          this.inputText, this.selectedVoice, 0.5
-        );
+        this.playerService.generateTiktokWithBuffer(this.inputText, this.selectedVoice, 0.5);
       } else {
-        this.playerService.generateGoogleWithBuffer(
-          this.inputText, this.selectedVoice, 0.5
-        );
+        this.playerService.generateGoogleWithBuffer(this.inputText, this.selectedVoice, 0.5);
       }
     } catch (error: any) {
       this.errorMessage.set(error.message || 'Unknown error');
@@ -235,10 +225,10 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   playNext(): void {
-    // Con índice 5 y longitud 5, esta condición ES true — si no entra, 
+    // Con índice 5 y longitud 5, esta condición ES true — si no entra,
     // hay algo más ejecutándose después que vuelve a llamar reproducirSiguiente
     if (this.currentIndex() >= this.audioQueue().length) {
-        this.ngZone.run(() => {
+      this.ngZone.run(() => {
         this.isPlaying.set(false);
         this.isDowloadingInBackground.set(false);
         this.successMessage.set('Playback completed');
@@ -276,7 +266,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     audioEl.src = currentUrl;
     audioEl.volume = this.volume / 100;
     audioEl.playbackRate = this.playSpeed();
-    audioEl.play().catch(e => console.error('Playback error:', e));
+    audioEl.play().catch((e) => console.error('Playback error:', e));
   }
 
   pauseOrResume(): void {
@@ -295,7 +285,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   stop(): void {
     this.playerService.stop();
     this.isStopping = true;
-    this.isDowloadingInBackground.set(false);  // detiene el loop de descarga
+    this.isDowloadingInBackground.set(false); // detiene el loop de descarga
     this.isPaused.set(false);
     this.cleanUpPlayback();
     this.successMessage.set('');
@@ -309,7 +299,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
       audioEl.src = '';
     }
     // Ahora sí revocamos todos los blobUrls al limpiar
-    this.chunks().forEach(c => URL.revokeObjectURL(c.blobUrl));
+    this.chunks().forEach((c) => URL.revokeObjectURL(c.blobUrl));
     this.chunks.set([]);
     this.audioQueue.set([]);
     this.currentIndex.set(0);
@@ -323,7 +313,7 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
   }
 
   async exportAudio(): Promise<void> {
-    if (!this.mergedBuffer) {
+    if (!this.mergedBuffer && this.chunks().length === 0) {
       this.errorMessage.set('Generate audio first before exporting');
       return;
     }
@@ -331,11 +321,17 @@ export class TtsPlayerComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     try {
       if (this.exportFormat() === 'mp3') {
-        downloadMp3(this.mergedBuffer, 'pinspeech-output');
-        this.successMessage.set('Audio exported as MP3');
+        // MP3: concatenación directa de binarios — sin AudioContext, sin bloquear el hilo
+        downloadMp3Chunks(this.chunks().filter(Boolean), 'pinspeech-output');
+        this.successMessage.set('✓ Audio exported as MP3');
       } else {
+        // WAV: requiere decodificar y mezclar AudioBuffers
+        if (!this.mergedBuffer) {
+          this.errorMessage.set('WAV export is still processing, please wait');
+          return;
+        }
         downloadWav(this.mergedBuffer, 'pinspeech-output');
-        this.successMessage.set('Audio exported as WAV');
+        this.successMessage.set('✓ Audio exported as WAV');
       }
     } catch (e: any) {
       this.errorMessage.set('Export error: ' + e.message);

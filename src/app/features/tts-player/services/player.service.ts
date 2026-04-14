@@ -26,6 +26,7 @@ export class PlayerService {
   readonly onStopped$ = new Subject<void>();
 
   private isActive = false;
+  private audioContext = new AudioContext();
 
   constructor(
     private ttsService: TtsService,
@@ -108,10 +109,13 @@ export class PlayerService {
 
     if (!this.isActive) return;
 
+    // Esperamos 2 segundos para no competir con el reproductor
+    await new Promise(r => setTimeout(r, 2000));
+
     // Pre-combinamos para export instantáneo
     const validChunks = chunksArr.filter(Boolean);
     if (validChunks.length > 0) {
-      const mergedBuffer = await mergeBuffersInBackground(validChunks);
+      const mergedBuffer = await mergeBuffersInBackground(validChunks, this.audioContext);
       this.ngZone.run(() => this.onAllDownloaded$.next({ mergedBuffer }));
     }
 
@@ -190,9 +194,12 @@ export class PlayerService {
 
     if (!this.isActive) return;
 
+     // Esperamos 2 segundos para no competir con el reproductor
+    await new Promise(r => setTimeout(r, 2000));
+
     const validChunks = chunksArr.filter(Boolean);
     if (validChunks.length > 0) {
-      const mergedBuffer = await mergeBuffersInBackground(validChunks);
+      const mergedBuffer = await mergeBuffersInBackground(validChunks, this.audioContext);
       this.ngZone.run(() => this.onAllDownloaded$.next({ mergedBuffer }));
     }
 

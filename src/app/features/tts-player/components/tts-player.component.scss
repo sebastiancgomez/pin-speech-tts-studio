@@ -63,6 +63,7 @@ $color-error: #f76a6a;
       font-weight: 400;
       letter-spacing: -0.02em;
       background: linear-gradient(135deg, #fff 40%, $color-accent);
+      background-clip: text;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       margin: 0;
@@ -305,6 +306,7 @@ $color-error: #f76a6a;
 
   .volume-slider {
     flex: 1;
+    appearance: none;
     -webkit-appearance: none;
     height: 4px;
     border-radius: 4px;
