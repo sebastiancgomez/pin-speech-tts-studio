@@ -111,7 +111,7 @@ export class TtsService {
 // así podemos reproducir Y exportar sin depender del blobUrl (que se revoca)
   generateTiktokAudio(text: string, voiceId: string): Observable<ChunkAudio> {
     const body = JSON.stringify({ 
-      text: text, 
+      text: text.trim(), 
       voice: voiceId 
     });
     return this.http.post<{success: boolean, data: string, error: string | null}>(
@@ -148,11 +148,11 @@ export class TtsService {
 
   buildGoogleUrl(text: string, language: string): string {
     // 1. Codificamos el texto para la URL
-    const encodedText = encodeURIComponent(text);
+    const encodedText = encodeURIComponent(text.trim());
     
     // 2. Para 'textlen', Google suele esperar la longitud del texto original, 
     // no la del texto ya codificado con '%'.
-    const textLength = text.length;
+    const textLength = text.trim().length;
 
     return `${this.GOOGLE_BASE}?ie=UTF-8&total=1&idx=0&client=tw-ob&prev=input` +
           `&textlen=${textLength}&q=${encodedText}&tl=${language}&ttsspeed=1`;
@@ -164,12 +164,12 @@ export class TtsService {
     const chunks = this.divideIntoChunks(text, 180);
     // Ahora apunta a nuestro proxy en vez de Google directamente
     return chunks.map(chunk =>
-      `${this.GOOGLE_URL}?text=${encodeURIComponent(chunk)}&lang=${language}`
+      `${this.GOOGLE_URL}?text=${encodeURIComponent(chunk.trim())}&lang=${language}`
     );
   }
 
   generateGoogleAudio(text: string, language: string): Observable<ChunkAudio> {
-    const url = `${this.GOOGLE_URL}?text=${encodeURIComponent(text)}&lang=${language}`;
+    const url = `${this.GOOGLE_URL}?text=${encodeURIComponent(text.trim())}&lang=${language}`;
     
     // responseType: 'blob' le dice a HttpClient que espere binario, no JSON
     // Equivalente a: response.Content.ReadAsByteArrayAsync() en C#
